@@ -33,6 +33,24 @@ Assessment brief: [`docs/assessment/take-home-assessment-tech.pdf`](docs/assessm
 | `dev`       | Integration branch                                       |
 | `main`      | Persistence-neutral base skeleton                        |
 
+## Package layout — anti-corruption layering
+
+Strict separation between the Controller, Service and Data layers; objects never leak across, MapStruct maps between
+them:
+
+| Package      | Role                                                                                                                                 |
+|--------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `api`        | REST controllers + `@ControllerAdvice` centralized error handling                                                                    |
+| `api/dto`    | Controller-boundary objects — immutable request/response records, wrapped in `ApiResponse<T>`                                        |
+| `domain`     | Pure business objects between the controller and data layers — **no** `jakarta.persistence.*` / `org.springframework.data.*` imports |
+| `model`      | Persistence models only (JPA entities / Data JDBC aggregates extending `BaseEntity`) — the only package allowed persistence imports  |
+| `service`    | Transactional use-case orchestration — works with `domain` objects                                                                   |
+| `repository` | Spring Data repositories — work with `model` objects                                                                                 |
+| `event`      | Domain events + publisher abstraction (SNS adapter behind a port)                                                                    |
+| `config`     | Bean wiring (`SnsClient`, auditing, configuration properties)                                                                        |
+
+Flow: **Controller (`dto`) ↔ Service (`domain`) ↔ Repository (`model`)**
+
 ## Library / compatibility notes
 
 - **Spring Cloud AWS** (`io.awspring.cloud`) has no Spring Boot 4-compatible release (latest: 3.4.0, Boot 3.x) — the
