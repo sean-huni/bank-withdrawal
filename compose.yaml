@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: 'postgres:17-alpine'
+    environment:
+      POSTGRES_DB: bank
+      POSTGRES_USER: bank
+      POSTGRES_PASSWORD: bank
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: [ 'CMD-SHELL', 'pg_isready -U bank -d bank' ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  localstack:
+    # 4.x is the community line — the 2026.x CalVer images require a LOCALSTACK_AUTH_TOKEN (license)
+    image: 'localstack/localstack:4.14'
+    environment:
+      SERVICES: sns
+    ports:
+      - '4566:4566'
+    volumes:
+      - './localstack/init-sns.sh:/etc/localstack/init/ready.d/init-sns.sh:ro'
+    healthcheck:
+      test: [ 'CMD-SHELL', 'curl -sf http://localhost:4566/_localstack/health | grep -q sns' ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
