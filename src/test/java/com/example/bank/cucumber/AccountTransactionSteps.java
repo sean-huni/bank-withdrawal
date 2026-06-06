@@ -234,6 +234,20 @@ public class AccountTransactionSteps {
 		assertThat(lastResult.body().at("/traceId").asString()).isEqualTo(sentTraceId);
 	}
 
+	@When("the OpenAPI spec is fetched")
+	public void openApiSpecFetched() {
+		lastResult = get("/v3/api-docs");
+		assertThat(lastResult.status()).isEqualTo(200);
+	}
+
+	@Then("every documented path starts with {string} and carries no version placeholder")
+	public void documentedPathsCarryConcreteVersion(final String prefix) {
+		final var documentedPaths = lastResult.body().at("/paths").propertyNames();
+		assertThat(documentedPaths).isNotEmpty();
+		assertThat(documentedPaths).allSatisfy(path ->
+				assertThat(path).startsWith(prefix).doesNotContain("{api-version}"));
+	}
+
 	@Then("the account balance of {string} is {bigdecimal}")
 	public void accountBalanceIs(final String holder, final BigDecimal expectedBalance) {
 		final BigDecimal balance = accountRepo.findById(accountsByHolder.get(holder))

@@ -230,7 +230,7 @@ listener** guarantees no event is ever emitted for a rolled-back withdrawal.
   and the idempotency cache replays pure domain records.
 - **Persistence** — Spring Data JDBC keeps the persistence model deliberately simple: aggregates load and save eagerly
   in single statements, there is no persistence context or lazy proxying, and cross-aggregate references are plain ids.
-- **Testing** — 16 Cucumber scenarios (positive + negative per flow) run over real HTTP: `@SpringBootTest(RANDOM_PORT)`
+- **Testing** — 17 Cucumber scenarios (positive + negative per flow) run over real HTTP: `@SpringBootTest(RANDOM_PORT)`
   plus Spring Framework 7's `RestTestClient`, including W3C `traceparent` propagation scenarios that only a real server
   can satisfy. Scenarios cover: idempotent replay debits once, key reuse with a different body conflicts, two parallel
   withdrawals of 70 against a balance of 100 yield exactly one `201` and one `422`, cache hits proven via Caffeine
