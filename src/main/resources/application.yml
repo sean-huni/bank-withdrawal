@@ -1,0 +1,60 @@
+spring:
+  application:
+    name: bank-withdrawal
+  # Auto-load a local (gitignored) .env file as a property source — see .env.example.
+  # Precedence: yml default < .env < real environment variable < test registrars.
+  config:
+    import: 'optional:file:.env[.properties]'
+  mvc:
+    api-version:
+      supported: ["1"]        # supported set declared here, not in annotations
+      # version travels in the second path segment: /api/{api-version}/... (0-based index)
+      # NOTE: default-version (exact key; not "default") is meaningless with path-segment
+      # versioning — the resolver always finds a segment or the path doesn't match at all.
+      use:
+        path-segment: "1"
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+app:
+  aws:
+    # Defaults target the LocalStack container from compose.yaml; every value is
+    # overridable via .env / environment without touching tracked files.
+    region: ${AWS_REGION:us-east-1}
+    endpoint: ${AWS_ENDPOINT:http://localhost:4566}
+    access-key: ${AWS_ACCESS_KEY:test}
+    secret-key: ${AWS_SECRET_KEY:test}
+    sns:
+      withdrawal-topic-arn: ${WITHDRAWAL_TOPIC_ARN:arn:aws:sns:us-east-1:000000000000:bank-withdrawal-events}
+
+management:
+  # OTLP export is opt-in via the dev profile (application-dev.yml) — disabled here so
+  # tests and non-dev runs never dial a collector that isn't there.
+  otlp:
+    metrics:
+      export:
+        enabled: false
+  tracing:
+    export:
+      otlp:
+        enabled: false
+  logging:
+    export:
+      otlp:
+        enabled: false
+  # Security is descoped for this exercise — management endpoints are public.
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.example.bank: DEBUG

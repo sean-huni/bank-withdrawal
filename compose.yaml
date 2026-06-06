@@ -1,17 +1,27 @@
 services:
   postgres:
-    image: 'postgres:17-alpine'
+    image: 'postgres:18-alpine3.23'
+    # compose natively reads the same .env file the app imports — one override point
     environment:
-      POSTGRES_DB: bank
-      POSTGRES_USER: bank
-      POSTGRES_PASSWORD: bank
+      POSTGRES_DB: ${POSTGRES_DB:-bank}
+      POSTGRES_USER: ${POSTGRES_USER:-bank}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bank}
     ports:
       - '5432:5432'
     healthcheck:
-      test: [ 'CMD-SHELL', 'pg_isready -U bank -d bank' ]
+      test: [ 'CMD-SHELL', 'pg_isready -U $${POSTGRES_USER:-bank} -d $${POSTGRES_DB:-bank}' ]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # All-in-one observability: Grafana UI (3000) + embedded OTLP collector (4317 gRPC / 4318 HTTP)
+  # backed by Prometheus/Mimir (metrics), Tempo (traces) and Loki (logs).
+  grafana-lgtm:
+    image: 'grafana/otel-lgtm:0.28.0'
+    ports:
+      - '3000:3000'
+      - '4317:4317'
+      - '4318:4318'
 
   localstack:
     # 4.x is the community line — the 2026.x CalVer images require a LOCALSTACK_AUTH_TOKEN (license)

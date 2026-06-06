@@ -8,7 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 @ConfigurationPropertiesScan
 public class BankWithdrawalApp {
 
-	public static void main(final String[] args) {
+	static void main(final String[] args) {
 		SpringApplication.run(BankWithdrawalApp.class, args);
 	}
 }

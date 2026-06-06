@@ -1,0 +1,30 @@
+# Dev profile — exports metrics, traces and logs to the local Grafana LGTM container
+# (compose.yaml: grafana/otel-lgtm — UI at http://localhost:3000, OTLP HTTP at :4318).
+# Property names verified against Boot 4.0.6 spring-configuration-metadata (management.*,
+# NOT the spring.otlp.* names floating around in Boot 4 demos).
+management:
+  otlp:
+    metrics:
+      export:
+        enabled: true
+        url: ${OTLP_BASE_URL:http://localhost:4318}/v1/metrics
+        step: 10s
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTLP_BASE_URL:http://localhost:4318}/v1/traces
+    logging:
+      export:
+        otlp:
+          endpoint: ${OTLP_BASE_URL:http://localhost:4318}/v1/logs
+  tracing:
+    export:
+      otlp:
+        enabled: true
+    sampling:
+      probability: 1.0
+  logging:
+    export:
+      otlp:
+        enabled: true
