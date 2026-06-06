@@ -29,16 +29,40 @@ sdk env                      # activate them for this shell (or enable sdkman_au
 one override point for both. All yml values keep working defaults (`${VAR:default}` placeholders), so a clean
 clone runs with no `.env` at all; precedence is yml default < `.env` < real environment variable.
 
-## Branching model
+## Architectural approaches
+
+### Gitflow branching model
 
 `feat-*` → `dev` → `rel-*` → `int-*` → `main`
 
-| Branch      | Purpose                                                  |
-|-------------|----------------------------------------------------------|
-| `feat-jpa`  | Implementation variant using Spring Data **JPA**         |
-| `feat-jdbc` | Implementation variant using Spring Data **JDBC**        |
-| `dev`       | Integration branch                                       |
-| `main`      | Persistence-neutral base skeleton                        |
+| Branch      | Purpose                                                                                  |
+|-------------|------------------------------------------------------------------------------------------|
+| `feat-jpa`  | Implementation variant using Spring Data **JPA** — the complete assessment work          |
+| `feat-jdbc` | Implementation variant using Spring Data **JDBC** (persistence baseline)                 |
+| `dev`       | Integration branch — feature branches merge here first                                   |
+| `rel-*`     | Release stabilization (cut from `dev` when a release candidate is ready)                 |
+| `int-*`     | Integration/staging verification before production promotion                            |
+| `main`      | Production-ready history; currently the persistence-neutral base skeleton                |
+
+Features are developed in isolation and flow toward `main` only through integration and release gates —
+history stays linear per branch, every commit is thematic and `./gradlew clean build`-verified at its tip.
+
+### 12-Factor App alignment
+
+| Factor | How this project applies it |
+|---|---|
+| I. Codebase | One repo, many deploys; gitflow branches track the same codebase |
+| II. Dependencies | Explicitly declared and isolated: Gradle wrapper, versions centralized in `gradle.properties`, toolchain pinned via `.sdkmanrc` (`sdk env install`) |
+| III. Config | Strict env/code separation: `${VAR:default}` placeholders, `.env` auto-import, Spring profiles (`dev` for observability); nothing environment-specific is hardcoded |
+| IV. Backing services | Postgres, SNS and the OTLP collector are attached resources, addressed by URL and swappable per environment (LocalStack/LGTM locally, real AWS/collector elsewhere) without code change |
+| V. Build, release, run | Strictly separated: `./gradlew build` produces an immutable `bootJar`; config (profile/env) binds at run time, never baked in |
+| VI. Processes | Stateless service — all state lives in Postgres; the Caffeine cache holds only immutable, write-once entries (a correctness-safe local optimization, not session state) |
+| VII. Port binding | Self-contained embedded Tomcat exporting HTTP on `${SERVER_PORT:8080}` — no external server required |
+| VIII. Concurrency | Scales horizontally: the DB-atomic guarded debit and unique idempotency-key reservation make N instances as safe as one (no application-level locks) |
+| IX. Disposability | Fast startup, graceful shutdown; idempotent POSTs mean a killed-mid-request instance is safely retried against another |
+| X. Dev/prod parity | Testcontainers and docker compose run the same Postgres 18/LocalStack engines used at runtime; tests hit real infrastructure, not in-memory stand-ins |
+| XI. Logs | Treated as event streams: stdout locally, OTLP export to the collector (Loki via LGTM) under the dev profile — the app never manages log files |
+| XII. Admin processes | Schema migrations are versioned Liquibase changesets executed by the app at startup against the bound database — no manual DDL |
 
 ## Package layout — anti-corruption layering
 

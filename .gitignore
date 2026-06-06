@@ -38,3 +38,6 @@ out/
 
 ### Local environment overrides ###
 .env
+
+### Local-only design specs (never in VCS) ###
+docs/su*
