@@ -15,6 +15,8 @@ Assessment brief: [`docs/assessment/take-home-assessment-tech.pdf`](docs/assessm
 ## Run
 
 ```shell
+sdk env install              # one-time: installs the pinned JDK (and gradle) from .sdkmanrc
+sdk env                      # activate them for this shell (or enable sdkman_auto_env)
 ./gradlew clean build        # full build incl. tests (Docker must be running)
 ./gradlew bootRun            # spring-boot-docker-compose starts Postgres + LocalStack automatically
 ```
