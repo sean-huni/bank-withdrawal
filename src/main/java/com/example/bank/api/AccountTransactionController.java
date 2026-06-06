@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.bank.api.dto.resp.ApiResponse;
+import com.example.bank.api.validation.AllowedSortProperties;
 import com.example.bank.api.dto.req.DepositRequest;
 import com.example.bank.api.dto.resp.TransactionResponse;
 import com.example.bank.api.dto.req.WithdrawalRequest;
@@ -107,10 +108,13 @@ public class AccountTransactionController {
 	 */
 	@GetMapping("/transactions")
 	@Operation(summary = "Account statement",
-			description = "Paged, ordered ledger of the account's transactions (default: newest first). Responses: 200, 404 unknown account.")
+			description = "Paged, ordered ledger of the account's transactions (default: newest first). "
+					+ "Sortable properties: createdAt, amount, type, balanceAfter. "
+					+ "Responses: 200, 400 unsortable sort property, 404 unknown account.")
 	public ApiResponse<PagedModel<TransactionResponse>> statement(
 			@Parameter(description = "Account whose statement is requested", in = ParameterIn.PATH)
 			@PathVariable final UUID accountId,
+			@AllowedSortProperties({"createdAt", "amount", "type", "balanceAfter"})
 			@PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) final Pageable pageable) {
 		return ok(new PagedModel<>(transactionService.statement(accountId, pageable)));
 	}

@@ -1,15 +1,12 @@
-package com.example.bank.jpa.model;
+package com.example.bank.jdbc.model;
 
 import java.util.UUID;
 
+import org.springframework.data.relational.core.mapping.Column;
+import org.springframework.data.relational.core.mapping.Table;
+
 import com.example.bank.idempotency.IdempotencyStatus;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -20,29 +17,25 @@ import lombok.NoArgsConstructor;
  * constraint — not an application lock — serializes concurrent retries.
  */
 @Getter
-@Entity
-@Table(name = "idempotency_records",
-		uniqueConstraints = @UniqueConstraint(name = "uk_idempotency_key", columnNames = "idempotency_key"))
+@Table("idempotency_records")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class IdempotencyRecordEntity extends BaseEntity {
 
 	@NotNull
-	@Column(name = "idempotency_key", nullable = false, updatable = false)
+	@Column("idempotency_key")
 	private UUID key;
 
 	@NotNull
-	@Column(name = "request_fingerprint", nullable = false, updatable = false, length = 64)
+	@Column("request_fingerprint")
 	private String requestFingerprint;
 
 	@NotNull
-	@Enumerated(EnumType.STRING)
-	@Column(nullable = false, length = 16)
 	private IdempotencyStatus status;
 
-	@Column(name = "response_body", columnDefinition = "text")
+	@Column("response_body")
 	private String responseBody;
 
-	@Column(name = "response_type", length = 256)
+	@Column("response_type")
 	private String responseType;
 
 	public static IdempotencyRecordEntity started(final UUID key, final String requestFingerprint) {

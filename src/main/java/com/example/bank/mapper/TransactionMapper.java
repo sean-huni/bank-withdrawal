@@ -9,7 +9,7 @@ import org.mapstruct.MappingConstants;
 import com.example.bank.api.dto.resp.TransactionResponse;
 import com.example.bank.domain.AccountTransaction;
 import com.example.bank.event.WithdrawalEvent;
-import com.example.bank.jpa.model.TransactionEntity;
+import com.example.bank.jdbc.model.TransactionEntity;
 
 /**
  * The only crossing point between persistence, domain, dto and event objects
@@ -18,9 +18,8 @@ import com.example.bank.jpa.model.TransactionEntity;
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING, imports = UUID.class)
 public interface TransactionMapper {
 
-	/** Persistence → domain: {@code id→transactionId}, {@code account.id→accountId} (lazy-safe), {@code createdAt→occurredAt}. */
+	/** Persistence → domain: {@code id→transactionId}, {@code createdAt→occurredAt}; {@code accountId} maps by name. */
 	@Mapping(target = "transactionId", source = "id")
-	@Mapping(target = "accountId", source = "account.id")
 	@Mapping(target = "occurredAt", source = "createdAt")
 	AccountTransaction toAccountTransaction(TransactionEntity entity);
 

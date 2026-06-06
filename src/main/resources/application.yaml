@@ -1,5 +1,14 @@
 server:
   port: ${SERVER_PORT:8080}
+  tomcat:
+    # Sloppy clients send Swagger-style JSON-array sort values without percent-encoding
+    # (?sort=["type"]); Tomcat rejects these RFC 3986 characters in the query target by
+    # default. Letting them through hands the value to SortParameterNormalizingFilter,
+    # which unwraps the decoration — identical handling for encoded and unencoded URLs.
+    relaxed-query-chars:
+      - '['
+      - ']'
+      - '"'
 
 spring:
   application:
@@ -8,16 +17,21 @@ spring:
   # Precedence: yml default < .env < real environment variable < test registrars.
   config:
     import: 'optional:file:.env[.properties]'
-  # API versioning lives in ApiVersioningConfig (Java), not properties: the path predicate
-  # that scopes versioning to /api/** (so springdoc's /v3/api-docs isn't parsed as a version)
-  # is only expressible programmatically. Keeping yml properties too would register a second,
-  # predicate-less resolver and re-break springdoc.
+  # API versioning via configuration properties — the deliberate contrast with feat-jpa,
+  # which configures the same Spring Framework 7 native versioning programmatically
+  # (ApiVersioningConfig implementing WebMvcConfigurer).
+  mvc:
+    api-version:
+      supported: ["1"]        # supported set declared here, not in annotations
+      # version travels in the second path segment: /api/{api-version}/... (0-based index)
+      use:
+        path-segment: 1
+      # Version validation only applies to requests that match versioned mappings
+      # (/api/{api-version}/...) — springdoc, swagger-ui and actuator paths are untouched
+      # (verified empirically on Boot 4.0.6; no ignored-paths/predicate config is needed,
+      # and no such property exists in WebMvcProperties).
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
-  jpa:
-    open-in-view: false
-    hibernate:
-      ddl-auto: validate
 
 app:
   aws:
@@ -31,7 +45,7 @@ app:
       withdrawal-topic-arn: ${WITHDRAWAL_TOPIC_ARN:arn:aws:sns:us-east-1:000000000000:bank-withdrawal-events}
 
 management:
-  # OTLP export is opt-in via the dev profile (application-dev.yml) — disabled here so
+  # OTLP export is opt-in via the dev profile (application-dev.yaml) — disabled here so
   # tests and non-dev runs never dial a collector that isn't there.
   otlp:
     metrics:

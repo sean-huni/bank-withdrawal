@@ -20,8 +20,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.example.bank.exception.IdempotencyConflictException;
-import com.example.bank.jpa.model.IdempotencyRecordEntity;
-import com.example.bank.jpa.repo.IdempotencyRecordRepo;
+import com.example.bank.jdbc.model.IdempotencyRecordEntity;
+import com.example.bank.jdbc.repo.IdempotencyRecordRepo;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,7 +35,7 @@ import tools.jackson.databind.ObjectMapper;
  * {@link DataIntegrityViolationException} is caught outside the (rolled-back)
  * transaction so the replay can be served from a fresh read.
  *
- * <p>Concurrency: two retries with the same key race on {@code saveAndFlush};
+ * <p>Concurrency: two retries with the same key race on the INSERT;
  * the second blocks on the unique index until the first settles. Commit ⇒
  * duplicate-key ⇒ replay. Rollback ⇒ the row disappears ⇒ the second proceeds.
  */
@@ -58,13 +58,12 @@ public class IdempotencyAspect {
 
 		try {
 			return transactionTemplate.execute(status -> {
-				final IdempotencyRecordEntity record = idempotencyRecordRepo.saveAndFlush(
-						IdempotencyRecordEntity.started(key, fingerprint)); // unique key flushed now
+				// Data JDBC writes immediately — this INSERT claims the unique key now
+				final IdempotencyRecordEntity record = idempotencyRecordRepo.save(
+						IdempotencyRecordEntity.started(key, fingerprint));
 				final Object result = proceed(joinPoint);                   // business op joins this tx
 				record.complete(serialize(result), returnType.getName());
-				// re-attach explicitly: @Modifying(clearAutomatically) inside the business op
-				// detaches `record`, so a plain dirty-check would silently drop COMPLETED
-				idempotencyRecordRepo.save(record);
+				idempotencyRecordRepo.save(record);                         // versioned UPDATE → COMPLETED
 				return result;
 			});
 		} catch (final DataIntegrityViolationException duplicate) {

@@ -20,10 +20,9 @@ import com.example.bank.exception.InsufficientFundsException;
 import com.example.bank.exception.TransactionNotFoundException;
 import com.example.bank.idempotency.Idempotent;
 import com.example.bank.idempotency.IdempotencyKey;
-import com.example.bank.jpa.model.AccountEntity;
-import com.example.bank.jpa.model.TransactionEntity;
-import com.example.bank.jpa.repo.AccountRepo;
-import com.example.bank.jpa.repo.TransactionRepo;
+import com.example.bank.jdbc.model.TransactionEntity;
+import com.example.bank.jdbc.repo.AccountRepo;
+import com.example.bank.jdbc.repo.TransactionRepo;
 import com.example.bank.mapper.TransactionMapper;
 
 import io.micrometer.observation.annotation.Observed;
@@ -163,10 +162,9 @@ public class AccountTransactionService {
     private AccountTransaction recordTransaction(final UUID accountId, final TransactionType type,
                                                  final BigDecimal amount, final BigDecimal balanceAfter,
                                                  final UUID idempotencyKey) {
-        // lazy reference — getId() never triggers a SELECT on the proxy
-        final AccountEntity account = accountRepo.getReferenceById(accountId);
-        final var transactionEntity = TransactionEntity.create(account, type, amount, balanceAfter, idempotencyKey);
-        final TransactionEntity savedTx = transactionRepo.save(transactionEntity);
+        // Data JDBC: aggregates reference each other by id — no proxy indirection needed
+        final TransactionEntity savedTx = transactionRepo.save(
+                TransactionEntity.create(accountId, type, amount, balanceAfter, idempotencyKey));
         return transactionMapper.toAccountTransaction(savedTx);
     }
 }

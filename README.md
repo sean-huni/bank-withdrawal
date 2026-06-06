@@ -37,9 +37,9 @@ clone runs with no `.env` at all; precedence is yml default < `.env` < real envi
 
 | Branch      | Purpose                                                                                  |
 |-------------|------------------------------------------------------------------------------------------|
-| `feat-jpa`  | Implementation variant using Spring Data **JPA** — the complete assessment work          |
-| `feat-jdbc` | Implementation variant using Spring Data **JDBC** (persistence baseline)                 |
-| `dev`       | Integration branch — feature branches merge here first                                   |
+| `feat-jpa`  | Implementation variant using Spring Data **JPA** + programmatic API-versioning config    |
+| `feat-jdbc` | Implementation variant using Spring Data **JDBC** + yml API-versioning config            |
+| `dev`       | Integration branch — feature branches merge here first; carries the JDBC implementation  |
 | `rel-*`     | Release stabilization (cut from `dev` when a release candidate is ready)                 |
 | `int-*`     | Integration/staging verification before production promotion                            |
 | `main`      | Production-ready history; currently the persistence-neutral base skeleton                |
@@ -75,15 +75,15 @@ them:
 | `api/dto`     | Controller-boundary objects — immutable request/response records, wrapped in `ApiResponse<T>` (+ `ApiError` with code/violations)    |
 | `domain`      | Pure business objects between the controller and data layers — **no** `jakarta.persistence.*` / `org.springframework.data.*` imports |
 | `exception`   | Business exceptions — mapped to HTTP statuses exclusively by the advice                                                              |
-| `jpa/model`   | Persistence models only (JPA entities extending `BaseEntity`) — the only package allowed persistence imports                         |
-| `jpa/repo`    | Spring Data repositories — work with `jpa/model` objects                                                                             |
+| `jdbc/model`  | Persistence models only (Data JDBC aggregates extending `BaseEntity`) — the only package allowed persistence imports                  |
+| `jdbc/repo`   | Spring Data repositories — work with `jdbc/model` objects                                                                            |
 | `idempotency` | `@Idempotent` aspect: key reservation + cached-response replay in the business transaction                                           |
 | `service`     | Transactional use-case orchestration — `domain` objects internally, returns ready-to-serve DTOs                                      |
 | `mapper`      | MapStruct mappers (used by the service layer) — the only crossing points between entity, domain, dto and event objects               |
 | `event`       | Domain events + publisher abstraction (SNS adapter behind a port, after-commit listener)                                             |
 | `config`      | Bean wiring (`SnsClient`, auditing, `TransactionTemplate`, `ObservedAspect`, properties)                                             |
 
-Flow: **Repository (`jpa/model`) → Service (`model` ↔ `domain` ↔ `dto` via MapStruct) → Controller (`dto`, lean pass-through)**
+Flow: **Repository (`jdbc/model`) → Service (`model` ↔ `domain` ↔ `dto` via MapStruct) → Controller (`dto`, lean pass-through)**
 
 ## REST API
 
@@ -111,14 +111,16 @@ curl -X POST localhost:8080/api/v1/accounts/<uuid>/withdrawals \
    so a canonical-URI pointer would only invite a redundant follow-up read.
 3. **The account id belongs in the path, not the body** — the URI identifies the resource acted upon;
    the body carries only the command payload.
-4. **First-class API versioning** (Spring Framework 7): the path is `/api/{api-version}/…`, configured in
-   `ApiVersioningConfig` — `usePathSegment(1, path → path startsWith "/api/")` plus the supported set. Java
-   config rather than `spring.mvc.api-version.*` properties for one reason: the path predicate (which keeps
-   framework endpoints like springdoc's `/v3/api-docs` out of version resolution) is only expressible
-   programmatically. No version attributes on mappings, no hardcoded `v1` prefix; unsupported versions are
-   rejected with `400 UNSUPPORTED_API_VERSION`. Evolving to v2 = add `"2"` to the supported set + a
-   `version = "2"` handler only where behavior diverges. (`default-version` is deliberately absent: the path
-   resolver never yields "no version", so a default cannot apply to path-segment versioning.)
+4. **First-class API versioning** (Spring Framework 7): API versioning is configured purely in `application.yaml`
+   via `spring.mvc.api-version.*` (path-segment at index 1, supported set `["1"]`). Version validation only
+   applies to requests matching versioned mappings, so springdoc and actuator need no exclusions (verified
+   empirically; Boot 4.0.6 has no `ignored-paths` property). The sibling `feat-jpa` branch demonstrates the
+   same Spring Framework 7 versioning configured programmatically (`ApiVersioningConfig` implementing
+   `WebMvcConfigurer`) — together the branches show both setup styles. No version attributes on mappings, no
+   hardcoded `v1` prefix; unsupported versions are rejected with `400 UNSUPPORTED_API_VERSION`. Evolving to v2 =
+   add `"2"` to the supported set + a `version = "2"` handler only where behavior diverges. (`default-version`
+   is deliberately absent: the path resolver never yields "no version", so a default cannot apply to
+   path-segment versioning.)
 5. **`Idempotency-Key` header on every POST** (Stripe/PayPal-style): network retries must not double-debit.
    Replay returns the original representation; same key with a different body is a `409`.
 6. **Customer vocabulary on the wire, accounting vocabulary inside** — endpoints say withdraw/deposit, the
@@ -135,7 +137,7 @@ Tempo, Loki). The app exports **metrics, traces and logs** via OTLP — but only
 SPRING_PROFILES_ACTIVE=dev ./gradlew bootRun   # Grafana at http://localhost:3000 (admin/admin)
 ```
 
-- `application-dev.yml` carries all Grafana/Prometheus-facing config (OTLP endpoints on :4318, 100% trace
+- `application-dev.yaml` carries all Grafana/Prometheus-facing config (OTLP endpoints on :4318, 100% trace
   sampling, 10s metric step); the default profile disables OTLP export so tests/CI never dial a collector.
 - Logs flow through the `OpenTelemetryAppender` (`logback-spring.xml`), installed by
   `OpenTelemetryAppenderInitializer`.
@@ -150,11 +152,15 @@ SPRING_PROFILES_ACTIVE=dev ./gradlew bootRun   # Grafana at http://localhost:300
   `/swagger-ui/index.html` and the spec at `/v3/api-docs` (the deprecated 1.x `springdoc-openapi-ui` must never be
   used). Two integration gotchas, both hit and fixed here: an explicit `swagger-annotations-jakarta` pin alongside
   the starter causes `NoSuchMethodError: Schema.$dynamicRef()` during spec generation (let the starter own the
-  swagger stack), and path-segment API versioning must be scoped to `/api/**` via the programmatic path predicate
-  or springdoc's own `/v3/api-docs` is rejected as "version 'api-docs'".
+  swagger stack), and path-segment API versioning is scoped to versioned mappings only — springdoc's `/v3/api-docs`
+  and actuator need no special exclusions when version validation only applies to requests matching versioned handlers
+  (verified empirically on Boot 4.0.6).
 - The Spring Cloud BOM (`2025.1.1`) is imported and ready, though no Spring Cloud starter is currently used.
 - **LocalStack** is pinned to `4.14` — the last free community line; the `2026.x` CalVer images exit at startup unless
   a `LOCALSTACK_AUTH_TOKEN` (paid license) is provided.
+- **Spring Data JDBC + UUIDs**: Data JDBC includes the id column in INSERTs, bypassing the DB-side `gen_random_uuid()` default — ids are assigned client-side by a `BeforeConvertCallback` (`JdbcAuditingConfig`).
+- **Data JDBC `@Query`**: always native SQL; `UPDATE … RETURNING balance` runs as a row-returning statement on PostgreSQL, keeping the funds check atomic without JPA.
+- **Optimistic locking**: Data JDBC throws the `org.springframework.dao.OptimisticLockingFailureException` root type (spring-orm's JPA subclass is not on the classpath) — the advice handles exactly that type.
 
 ---
 
@@ -216,21 +222,28 @@ listener** guarantees no event is ever emitted for a rolled-back withdrawal.
 - **Read path** — immutable ledger entries are cached (Caffeine, `sync=true`): a write-once row can never go stale,
   so the cache is trivially correct. Statements are deliberately uncached (mutation-coupled, eviction complexity
   outweighs the win). Caching policy follows **mutability, not traffic**.
+- **Caching is deliberately minimal** — a single `@Cacheable` on the immutable transaction-by-id read. Write-once
+  ledger rows can never go stale, so no `@CacheEvict`/`@CachePut` exists anywhere; account balances and statements
+  are never cached because they change with every write.
 - **Layering** — strict dto / domain / persistence-model separation with MapStruct as the only crossing point. This
-  paid off mechanically: swapping pessimistic locking for the guarded `RETURNING` update touched only `jpa/repo`,
+  paid off mechanically: swapping pessimistic locking for the guarded `RETURNING` update touched only `jdbc/repo`,
   and the idempotency cache replays pure domain records.
-- **Testing** — 14 Cucumber scenarios (positive + negative per flow) against **real** Postgres and LocalStack via
-  Testcontainers: idempotent replay debits once, key reuse with a different body conflicts, two parallel withdrawals
-  of 70 against a balance of 100 yield exactly one `201` and one `422`, cache hits proven via Caffeine statistics.
+- **Persistence** — Spring Data JDBC keeps the persistence model deliberately simple: aggregates load and save eagerly
+  in single statements, there is no persistence context or lazy proxying, and cross-aggregate references are plain ids.
+- **Testing** — 22 Cucumber scenarios (positive + negative per flow) run over real HTTP: `@SpringBootTest(RANDOM_PORT)`
+  plus Spring Framework 7's `RestTestClient`, including W3C `traceparent` propagation scenarios that only a real server
+  can satisfy. Scenarios cover: idempotent replay debits once, key reuse with a different body conflicts, two parallel
+  withdrawals of 70 against a balance of 100 yield exactly one `201` and one `422`, cache hits proven via Caffeine
+  statistics.
 
 ## 3. Fixed code
 
-The fixed implementation is this repository (branch `feat-jpa`; `feat-jdbc` carries the Spring Data JDBC variant of
+The fixed implementation is this repository (the Spring Data JDBC variant, merged from `feat-jdbc`; `feat-jpa` carries the Spring Data JPA variant of
 the persistence baseline). Entry points, in reading order:
 
 1. [`AccountTransactionController`](src/main/java/com/example/bank/api/AccountTransactionController.java) — the lean HTTP boundary
 2. [`AccountTransactionService`](src/main/java/com/example/bank/service/AccountTransactionService.java) — the business flow (compare directly with the original snippet)
-3. [`AccountRepo`](src/main/java/com/example/bank/jpa/repo/AccountRepo.java) — the atomic guarded `RETURNING` debit
+3. [`AccountRepo`](src/main/java/com/example/bank/jdbc/repo/AccountRepo.java) — the atomic guarded `RETURNING` debit
 4. [`IdempotencyAspect`](src/main/java/com/example/bank/idempotency/IdempotencyAspect.java) — retry safety
 5. [`WithdrawalEventListener`](src/main/java/com/example/bank/event/WithdrawalEventListener.java) / [`SnsWithdrawalEventPublisher`](src/main/java/com/example/bank/event/SnsWithdrawalEventPublisher.java) — the fixed notification path
 6. [`GlobalExceptionHandler`](src/main/java/com/example/bank/api/advice/GlobalExceptionHandler.java) — centralized error semantics
@@ -250,14 +263,16 @@ symptoms and fixes: [`docs/lessons.md`](docs/lessons.md)):
 - **Spring Framework 7 API versioning** — the `{api-version}` path segment + yml-declared supported set; the
   `version` mapping attribute or `supported` list is mandatory (an empty supported set rejects every request), and
   `default-version` cannot apply to path-segment resolution.
-- **MapStruct** — `componentModel = "spring"`; generated mappers are the only layer-crossing code, including the
-  lazy-proxy-safe `account.id` read that avoids initializing the `@ManyToOne` reference.
-- **`@Modifying(clearAutomatically)` interaction** — a clearing modifying query detaches every loaded entity in the
-  transaction, including ones held by surrounding aspects (it silently dropped the idempotency record's `COMPLETED`
-  state until re-merged). The final `RETURNING`-based design removes the clearing query entirely.
-- **Spring Cloud AWS / springdoc** — no Boot 4-compatible releases at submission time; raw AWS SDK v2 (`SnsClient`
-  bean) and `swagger-annotations-jakarta` respectively, with the springdoc starter to be added the moment a
-  compatible version ships (`springdoc-openapi-ui` 1.x is deprecated and must not be used).
+- **MapStruct** — `componentModel = "spring"`; generated mappers are the only layer-crossing code; with Data JDBC
+  there are no lazy proxies to worry about — aggregate references are plain `UUID` fields.
+- **Data JDBC `@Query` + `RETURNING`** — Data JDBC's `@Query` is always native SQL. The `UPDATE … RETURNING balance`
+  statement is issued as a row-returning query (`queryForObject`-style), keeping the funds check and debit atomic in
+  one round-trip without a JPA persistence context.
+- **Spring Cloud AWS** — still no Boot 4-compatible release; the raw AWS SDK v2 `SnsClient` bean is wired
+  manually (`SnsClientConfig`).
+- **springdoc** — the 3.x line (`springdoc-openapi-starter-webmvc-ui:3.0.3`) is the Boot 4-compatible release
+  and is integrated; the starter owns the swagger-annotations stack (no explicit pin — a version mismatch
+  causes `NoSuchMethodError` during spec generation).
 - **Testcontainers** — versions are no longer managed by the Boot 4 BOM (explicit `testcontainers-bom` import);
   LocalStack is pinned to the `4.x` community line (`2026.x` images require a paid license token) and reuses the
   same SNS init hook as docker compose.

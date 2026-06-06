@@ -10,7 +10,7 @@ import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.utility.MountableFile;
 
 @TestConfiguration(proxyBeanMethods = false)
-public class TestConfig {
+public class TestcontainersConfiguration {
 
 	@Bean
 	@ServiceConnection
