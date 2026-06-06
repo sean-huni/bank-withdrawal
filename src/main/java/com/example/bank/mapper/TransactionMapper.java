@@ -9,7 +9,7 @@ import org.mapstruct.MappingConstants;
 import com.example.bank.api.dto.resp.TransactionResponse;
 import com.example.bank.domain.AccountTransaction;
 import com.example.bank.event.WithdrawalEvent;
-import com.example.bank.model.TransactionEntity;
+import com.example.bank.jdbc.model.TransactionEntity;
 
 /**
  * The only crossing point between persistence, domain, dto and event objects

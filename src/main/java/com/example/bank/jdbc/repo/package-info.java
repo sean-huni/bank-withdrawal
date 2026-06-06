@@ -1,4 +1,4 @@
 /**
  * Persistence layer — Spring Data repositories over PostgreSQL.
  */
-package com.example.bank.repo;
+package com.example.bank.jdbc.repo;

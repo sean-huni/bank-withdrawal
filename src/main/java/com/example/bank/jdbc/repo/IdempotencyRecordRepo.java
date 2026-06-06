@@ -1,11 +1,11 @@
-package com.example.bank.repo;
+package com.example.bank.jdbc.repo;
 
 import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.repository.CrudRepository;
 
-import com.example.bank.model.IdempotencyRecordEntity;
+import com.example.bank.jdbc.model.IdempotencyRecordEntity;
 
 public interface IdempotencyRecordRepo extends CrudRepository<IdempotencyRecordEntity, UUID> {
 

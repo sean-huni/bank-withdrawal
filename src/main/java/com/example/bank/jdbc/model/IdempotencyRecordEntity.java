@@ -1,4 +1,4 @@
-package com.example.bank.model;
+package com.example.bank.jdbc.model;
 
 import java.util.UUID;
 

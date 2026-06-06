@@ -5,7 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jdbc.repository.config.EnableJdbcAuditing;
 import org.springframework.data.relational.core.mapping.event.BeforeConvertCallback;
 
-import com.example.bank.model.BaseEntity;
+import com.example.bank.jdbc.model.BaseEntity;
 
 /**
  * Enables audit-timestamp population and assigns UUID ids before INSERT —

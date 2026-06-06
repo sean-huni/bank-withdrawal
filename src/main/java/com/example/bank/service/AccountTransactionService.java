@@ -20,9 +20,9 @@ import com.example.bank.exception.InsufficientFundsException;
 import com.example.bank.exception.TransactionNotFoundException;
 import com.example.bank.idempotency.Idempotent;
 import com.example.bank.idempotency.IdempotencyKey;
-import com.example.bank.model.TransactionEntity;
-import com.example.bank.repo.AccountRepo;
-import com.example.bank.repo.TransactionRepo;
+import com.example.bank.jdbc.model.TransactionEntity;
+import com.example.bank.jdbc.repo.AccountRepo;
+import com.example.bank.jdbc.repo.TransactionRepo;
 import com.example.bank.mapper.TransactionMapper;
 
 import io.micrometer.observation.annotation.Observed;
