@@ -11,7 +11,9 @@ import com.example.bank.jpa.model.TransactionEntity;
 
 public interface TransactionRepo extends JpaRepository<TransactionEntity, UUID> {
 
+	/** One statement page for the account (backed by the account_id+created_at index). */
 	Page<TransactionEntity> findByAccountId(UUID accountId, Pageable pageable);
 
+	/** Account-scoped lookup — an id belonging to another account is treated as not found. */
 	Optional<TransactionEntity> findByAccountIdAndId(UUID accountId, UUID id);
 }

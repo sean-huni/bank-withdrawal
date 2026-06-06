@@ -55,6 +55,13 @@ public class AccountTransactionService {
      * the funds check inside the database and RETURNING hands back the new
      * balance — no pre-read, no re-read. The ledger row is written in the same
      * transaction; the domain event is published only after commit.
+     *
+     * @param accountId      account to debit
+     * @param idempotencyKey reservation key — replays return the cached response
+     * @param amount         positive amount, max 15 integer / 4 fraction digits
+     * @return the created DEBIT transaction, ready to serve
+     * @throws AccountNotFoundException   unknown account (404)
+     * @throws InsufficientFundsException guard failed (422)
      */
     @Idempotent
     @Transactional
@@ -73,6 +80,16 @@ public class AccountTransactionService {
         return transactionMapper.toTransactionResponse(transaction);
     }
 
+    /**
+     * Atomic deposit: single-statement credit via RETURNING, ledger entry in
+     * the same transaction. Same idempotency contract as {@link #withdraw}.
+     *
+     * @param accountId      account to credit
+     * @param idempotencyKey reservation key — replays return the cached response
+     * @param amount         positive amount, max 15 integer / 4 fraction digits
+     * @return the created CREDIT transaction, ready to serve
+     * @throws AccountNotFoundException unknown account (404)
+     */
     @Idempotent
     @Transactional
     @Observed(name = "account.deposit")
@@ -90,6 +107,14 @@ public class AccountTransactionService {
         return transactionMapper.toTransactionResponse(transaction);
     }
 
+    /**
+     * Pages through the account's ledger.
+     *
+     * @param accountId account whose statement is requested
+     * @param pageable  page/size/sort from the web layer
+     * @return one page of transactions, mapped to DTOs
+     * @throws AccountNotFoundException unknown account (404)
+     */
     @Transactional(readOnly = true)
     @Observed(name = "account.statement")
     public Page<TransactionResponse> statement(@NotNull final UUID accountId, final Pageable pageable) {
@@ -100,8 +125,14 @@ public class AccountTransactionService {
     }
 
     /**
-     * Ledger entries are write-once, so a cached entry can never go stale;
-     * {@code sync} collapses concurrent stampedes on one key to a single load.
+     * Single ledger entry lookup. Ledger entries are write-once, so a cached
+     * entry can never go stale; {@code sync} collapses concurrent stampedes on
+     * one key to a single load.
+     *
+     * @param accountId     owning account
+     * @param transactionId ledger entry id
+     * @return the transaction, mapped to a DTO (possibly from cache)
+     * @throws TransactionNotFoundException unknown id for this account (404)
      */
     @Transactional(readOnly = true)
     @Observed(name = "account.transaction.get")
