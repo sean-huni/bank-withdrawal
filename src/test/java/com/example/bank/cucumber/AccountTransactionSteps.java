@@ -2,7 +2,10 @@ package com.example.bank.cucumber;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -173,6 +176,14 @@ public class AccountTransactionSteps {
 				accountsByHolder.get(holder), sortProperty);
 	}
 
+	@When("the statement of {string} is requested with the raw unencoded sort [\"type\"]")
+	public void statementWithRawUnencodedSort(final String holder) throws Exception {
+		// java.net.URI cannot legally carry unencoded [ or " in a query, so the
+		// request goes over a raw socket — exactly the bytes a sloppy client sends
+		lastResult = rawGet("/api/v1/accounts/%s/transactions?sort=[\"type\"]"
+				.formatted(accountsByHolder.get(holder)));
+	}
+
 	@When("a transaction lookup for {string} uses an unknown transaction id")
 	public void unknownTransactionLookup(final String holder) {
 		lastResult = get("/api/v1/accounts/{accountId}/transactions/{transactionId}",
@@ -275,6 +286,21 @@ public class AccountTransactionSteps {
 		assertThat(statementContent(accountsByHolder.get(holder)).size()).isEqualTo(count);
 	}
 
+	@Then("the statement response lists {int} transaction(s)")
+	public void statementResponseListsTransactions(final int count) {
+		assertThat(lastResult.status()).isEqualTo(200);
+		assertThat(lastResult.body().at("/data/content").size()).isEqualTo(count);
+	}
+
+	@Then("the statement response lists {int} transactions with amounts in ascending order")
+	public void statementResponseAmountsAscending(final int count) {
+		statementResponseListsTransactions(count);
+		final List<BigDecimal> amounts = lastResult.body().at("/data/content").valueStream()
+				.map(tx -> tx.at("/amount").decimalValue())
+				.toList();
+		assertThat(amounts).isSorted();
+	}
+
 	@Then("the statement of {string} lists {int} transactions newest first")
 	public void statementNewestFirst(final String holder, final int count) {
 		final JsonNode content = statementContent(accountsByHolder.get(holder));
@@ -317,6 +343,22 @@ public class AccountTransactionSteps {
 		}
 		return capture(request.body("""
 				{"amount": %s}""".formatted(amount)));
+	}
+
+	/** Wire-level GET bypassing all client-side URI validation/encoding. */
+	private HttpResult rawGet(final String rawPathAndQuery) throws IOException {
+		try (Socket socket = new Socket("localhost", port)) {
+			socket.getOutputStream().write(
+					"GET %s HTTP/1.1\r\nHost: localhost:%d\r\nAccept: */*\r\nConnection: close\r\n\r\n"
+							.formatted(rawPathAndQuery, port)
+							.getBytes(StandardCharsets.US_ASCII));
+			final String response = new String(socket.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+			final int status = Integer.parseInt(response.split(" ", 3)[1]);
+			final String body = response.substring(response.indexOf("\r\n\r\n") + 4);
+			return new HttpResult(status, body.isBlank() || !body.startsWith("{")
+					? objectMapper.createObjectNode()
+					: objectMapper.readTree(body));
+		}
 	}
 
 	private HttpResult get(final String uriTemplate, final Object... uriVariables) {

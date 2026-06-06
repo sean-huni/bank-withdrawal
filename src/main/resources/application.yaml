@@ -1,5 +1,14 @@
 server:
   port: ${SERVER_PORT:8080}
+  tomcat:
+    # Sloppy clients send Swagger-style JSON-array sort values without percent-encoding
+    # (?sort=["type"]); Tomcat rejects these RFC 3986 characters in the query target by
+    # default. Letting them through hands the value to SortParameterNormalizingFilter,
+    # which unwraps the decoration — identical handling for encoded and unencoded URLs.
+    relaxed-query-chars:
+      - '['
+      - ']'
+      - '"'
 
 spring:
   application:

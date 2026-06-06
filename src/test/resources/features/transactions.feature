@@ -41,6 +41,25 @@ Feature: Deposits and account statement
     When the statement of "noah" is requested sorted by "balance"
     Then the operation fails with status 400 and error code "VALIDATION_FAILED"
 
+  Scenario: A Swagger UI JSON-array sort naming a sortable property is accepted
+    Given an account for "olga" with balance 300.00
+    When "olga" withdraws 100.00
+    And "olga" deposits 25.00
+    And the statement of "olga" is requested sorted by '["amount,asc"]'
+    Then the statement response lists 2 transactions with amounts in ascending order
+
+  Scenario: An unencoded JSON-array sort in the raw URL is accepted
+    Given an account for "pete" with balance 300.00
+    When "pete" withdraws 100.00
+    And the statement of "pete" is requested with the raw unencoded sort ["type"]
+    Then the statement response lists 1 transaction
+
+  Scenario: A JSON-array sort naming an unsortable property is still rejected
+    Given an account for "quinn" with balance 100.00
+    When the statement of "quinn" is requested sorted by '["balance"]'
+    Then the operation fails with status 400 and error code "VALIDATION_FAILED"
+    And the error reports a violation on field "sort"
+
   Scenario: Repeated reads of the same transaction are served from the cache
     Given an account for "kate" with balance 100.00
     When "kate" withdraws 40.00
