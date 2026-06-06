@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.example.bank.api.TraceIdProvider;
 import com.example.bank.api.dto.resp.ApiError;
@@ -147,6 +148,17 @@ public class GlobalExceptionHandler {
 	public ApiResponse<Void> handleDataIntegrity(final DataIntegrityViolationException ex) {
 		log.warn("Data integrity violation: {}", ex.getMessage());
 		return failure(ApiError.of("DATA_INTEGRITY_VIOLATION", "The request conflicts with existing data"));
+	}
+
+	/**
+	 * Unknown paths raise {@link NoResourceFoundException}; without this handler
+	 * they fall into the 500 catch-all — an unknown URL must be a 404.
+	 */
+	@ExceptionHandler(NoResourceFoundException.class)
+	@ResponseStatus(HttpStatus.NOT_FOUND)
+	public ApiResponse<Void> handleNoResource(final NoResourceFoundException ex) {
+		log.warn("No resource for path: {}", ex.getResourcePath());
+		return failure(ApiError.of("RESOURCE_NOT_FOUND", "No resource at the requested path"));
 	}
 
 	@ExceptionHandler(Exception.class)
