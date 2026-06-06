@@ -219,7 +219,7 @@ listener** guarantees no event is ever emitted for a rolled-back withdrawal.
 - **Layering** — strict dto / domain / persistence-model separation with MapStruct as the only crossing point. This
   paid off mechanically: swapping pessimistic locking for the guarded `RETURNING` update touched only `jpa/repo`,
   and the idempotency cache replays pure domain records.
-- **Testing** — 14 Cucumber scenarios (positive + negative per flow) against **real** Postgres and LocalStack via
+- **Testing** — 19 Cucumber scenarios (positive + negative per flow) against **real** Postgres and LocalStack via
   Testcontainers: idempotent replay debits once, key reuse with a different body conflicts, two parallel withdrawals
   of 70 against a balance of 100 yield exactly one `201` and one `422`, cache hits proven via Caffeine statistics.
 

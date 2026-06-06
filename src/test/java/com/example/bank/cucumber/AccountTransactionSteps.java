@@ -142,6 +142,20 @@ public class AccountTransactionSteps {
 				.andReturn();
 	}
 
+	@When("the statement of {string} is requested sorted by {string}")
+	public void statementSortedBy(final String holder, final String sortProperty) throws Exception {
+		// the template encodes the variable exactly like Swagger UI does (%5B%22string%22%5D)
+		lastResult = mockMvc.perform(get("/api/v1/accounts/{accountId}/transactions?sort={sort}",
+						accountsByHolder.get(holder), sortProperty))
+				.andReturn();
+	}
+
+	@When("the OpenAPI spec is fetched")
+	public void openApiSpecFetched() throws Exception {
+		lastResult = mockMvc.perform(get("/v3/api-docs")).andReturn();
+		assertThat(lastResult.getResponse().getStatus()).isEqualTo(200);
+	}
+
 	@When("a transaction lookup for {string} uses an unknown transaction id")
 	public void unknownTransactionLookup(final String holder) throws Exception {
 		lastResult = mockMvc.perform(get("/api/v1/accounts/{accountId}/transactions/{transactionId}",
@@ -226,6 +240,29 @@ public class AccountTransactionSteps {
 	@Then("the statement of {string} shows {int} transactions")
 	public void statementShowsCount(final String holder, final int count) throws Exception {
 		assertThat(statementContent(accountsByHolder.get(holder)).size()).isEqualTo(count);
+	}
+
+	@Then("the statement response lists {int} transaction(s)")
+	public void statementResponseListsTransactions(final int count) throws Exception {
+		assertThat(lastResult.getResponse().getStatus()).isEqualTo(200);
+		assertThat(body(lastResult).at("/data/content").size()).isEqualTo(count);
+	}
+
+	@Then("the statement response lists {int} transactions with amounts in ascending order")
+	public void statementResponseAmountsAscending(final int count) throws Exception {
+		statementResponseListsTransactions(count);
+		final List<BigDecimal> amounts = body(lastResult).at("/data/content").valueStream()
+				.map(tx -> tx.at("/amount").decimalValue())
+				.toList();
+		assertThat(amounts).isSorted();
+	}
+
+	@Then("every documented path starts with {string} and carries no version placeholder")
+	public void documentedPathsCarryConcreteVersion(final String prefix) throws Exception {
+		final var documentedPaths = body(lastResult).at("/paths").propertyNames();
+		assertThat(documentedPaths).isNotEmpty();
+		assertThat(documentedPaths).allSatisfy(path ->
+				assertThat(path).startsWith(prefix).doesNotContain("{api-version}"));
 	}
 
 	@Then("the statement of {string} lists {int} transactions newest first")

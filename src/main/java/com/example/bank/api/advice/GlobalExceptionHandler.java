@@ -2,10 +2,13 @@ package com.example.bank.api.advice;
 
 import java.util.List;
 
+import org.springframework.context.MessageSourceResolvable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.validation.FieldError;
+import org.springframework.validation.method.ParameterValidationResult;
 import org.springframework.web.accept.InvalidApiVersionException;
 import org.springframework.web.accept.MissingApiVersionException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -13,6 +16,7 @@ import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -96,6 +100,24 @@ public class GlobalExceptionHandler {
 		return failure(new ApiError("VALIDATION_FAILED", "Request validation failed", violations));
 	}
 
+	/**
+	 * Thrown by Spring's built-in handler method validation when a constraint
+	 * sits directly on a controller parameter (e.g. the statement endpoint's
+	 * sort whitelist on {@code Pageable}) — the modern counterpart of
+	 * {@link ConstraintViolationException}, which built-in validation does NOT
+	 * throw. Unhandled it would fall into the 500 catch-all.
+	 */
+	@ExceptionHandler(HandlerMethodValidationException.class)
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	public ApiResponse<Void> handleHandlerMethodValidation(final HandlerMethodValidationException ex) {
+		final List<ApiError.FieldViolation> violations = ex.getParameterValidationResults().stream()
+				.flatMap(result -> result.getResolvableErrors().stream()
+						.map(error -> new ApiError.FieldViolation(fieldOf(result, error), error.getDefaultMessage())))
+				.toList();
+		log.warn("Handler method validation failed: {}", violations);
+		return failure(new ApiError("VALIDATION_FAILED", "Request validation failed", violations));
+	}
+
 	@ExceptionHandler(MissingRequestHeaderException.class)
 	@ResponseStatus(HttpStatus.BAD_REQUEST)
 	public ApiResponse<Void> handleMissingHeader(final MissingRequestHeaderException ex) {
@@ -170,6 +192,18 @@ public class GlobalExceptionHandler {
 
 	private ApiResponse<Void> failure(final ApiError error) {
 		return ApiResponse.failure(error, traceIdProvider.currentTraceId());
+	}
+
+	/**
+	 * A violation with a property node beyond the parameter (e.g. the sort
+	 * whitelist's {@code addPropertyNode("sort")}) surfaces as a
+	 * {@link FieldError}; plain parameter violations only carry the parameter
+	 * name.
+	 */
+	private String fieldOf(final ParameterValidationResult result, final MessageSourceResolvable error) {
+		return error instanceof FieldError fieldError
+				? fieldError.getField()
+				: result.getMethodParameter().getParameterName();
 	}
 
 	/** "withdraw.amount" → "amount" — clients see the field, not the method path. */
