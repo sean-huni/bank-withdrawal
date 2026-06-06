@@ -56,8 +56,10 @@ dependencies {
 	annotationProcessor "org.projectlombok:lombok-mapstruct-binding:${lombokMapstructBindingVersion}"
 	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 
-	// OpenAPI annotations only — springdoc UI has no Spring Boot 4 compatible release yet (see README)
-	implementation "io.swagger.core.v3:swagger-annotations-jakarta:${swaggerAnnotationsVersion}"
+	// OpenAPI: springdoc 3.x is the Boot 4 line (1.x springdoc-openapi-ui is deprecated — never use it).
+	// No explicit swagger-annotations pin: the starter brings version-consistent annotations; a stale
+	// pin caused NoSuchMethodError: Schema.$dynamicRef() during spec generation.
+	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
 
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	developmentOnly 'org.springframework.boot:spring-boot-docker-compose'

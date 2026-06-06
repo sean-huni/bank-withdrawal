@@ -8,14 +8,10 @@ spring:
   # Precedence: yml default < .env < real environment variable < test registrars.
   config:
     import: 'optional:file:.env[.properties]'
-  mvc:
-    api-version:
-      supported: ["1"]        # supported set declared here, not in annotations
-      # version travels in the second path segment: /api/{api-version}/... (0-based index)
-      # NOTE: default-version (exact key; not "default") is meaningless with path-segment
-      # versioning — the resolver always finds a segment or the path doesn't match at all.
-      use:
-        path-segment: "1"
+  # API versioning lives in ApiVersioningConfig (Java), not properties: the path predicate
+  # that scopes versioning to /api/** (so springdoc's /v3/api-docs isn't parsed as a version)
+  # is only expressible programmatically. Keeping yml properties too would register a second,
+  # predicate-less resolver and re-break springdoc.
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
   jpa:

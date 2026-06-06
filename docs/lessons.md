@@ -85,7 +85,17 @@ Collected while building this project on Spring Boot 4 / Java 25 (2026-06). Each
     reference for related inserts comes from `getReferenceById` (lazy proxy, no SELECT — `getId()` doesn't
     initialize it), and the existence check moves to the failure path. This also removed
     `clearAutomatically`, the root cause of lesson 14.
-23. **Spring Framework 7 ships first-class API versioning.** `@RequestMapping(value = "/api/{version}/…",
+23. **springdoc 3.x is the Boot 4 line — but two traps guard it.** (a) An explicit
+    `swagger-annotations-jakarta` pin alongside the starter resolves swagger-core and the annotations to
+    different versions → `NoSuchMethodError: Schema.$dynamicRef()` when generating `/v3/api-docs`; remove the
+    pin and let the starter own the whole swagger stack. (b) Path-segment API versioning treats EVERY
+    request's segment as a version — springdoc's `/v3/api-docs` was rejected as "version 'api-docs'". The fix,
+    `usePathSegment(index, Predicate<RequestPath>)` scoping versioning to `/api/**`, exists only in the
+    programmatic `ApiVersionConfigurer` — which forces versioning config out of yml entirely (keeping the yml
+    properties too would register a second, predicate-less resolver). Bonus debugging lesson: a stale running
+    instance serves the old classpath — check the PID in the stack trace against the listener before
+    concluding a fix didn't work.
+24. **Spring Framework 7 ships first-class API versioning.** `@RequestMapping(value = "/api/{version}/…",
     version = "1")` + `spring.mvc.apiversion.use.path-segment: <index>` replaces hardcoded `/v1` prefixes.
     The semantic parser tolerates the `v` prefix (URL `v1` matches `version = "1"`); unsupported versions
     raise `InvalidApiVersionException` — map it in the advice or it falls into the 500 catch-all. Path-segment
@@ -96,7 +106,7 @@ Collected while building this project on Spring Boot 4 / Java 25 (2026-06). Each
     `WebMvcProperties$Apiversion`): the default key is `default-version`, not `default`; and a default is
     meaningless with path-segment versioning anyway — the path resolver never yields "no version" (it either
     finds the segment or the path doesn't match), so there is no gap for a default to fill.
-24. **Cache only what cannot change.** `@Cacheable(sync = true)` on the by-id ledger read is trivially
+25. **Cache only what cannot change.** `@Cacheable(sync = true)` on the by-id ledger read is trivially
     correct *because* the entry is write-once — no eviction logic, no staleness window; TTL/size bounds exist
     purely for memory. Statements were deliberately left uncached: correct eviction across page/sort key
     permutations costs more than the read saves. Caching policy follows mutability, not traffic.

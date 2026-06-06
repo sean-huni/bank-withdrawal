@@ -87,13 +87,14 @@ curl -X POST localhost:8080/api/v1/accounts/<uuid>/withdrawals \
    so a canonical-URI pointer would only invite a redundant follow-up read.
 3. **The account id belongs in the path, not the body** — the URI identifies the resource acted upon;
    the body carries only the command payload.
-4. **First-class API versioning** (Spring Framework 7): the path is `/api/{api-version}/…`;
-   `spring.mvc.api-version.use.path-segment: 1` tells Spring which segment carries the version and
-   `spring.mvc.api-version.supported: ["1"]` declares the supported set — entirely in yaml, no version
-   attributes and no hardcoded `v1` prefix in code. Unversioned mappings match any supported version;
-   unsupported ones are rejected with `400 UNSUPPORTED_API_VERSION`. Evolving to v2 = add `"2"` to the yaml
-   list + a `version = "2"` handler only where behavior diverges. (`default-version` is deliberately absent:
-   the path resolver never yields "no version", so a default cannot apply to path-segment versioning.)
+4. **First-class API versioning** (Spring Framework 7): the path is `/api/{api-version}/…`, configured in
+   `ApiVersioningConfig` — `usePathSegment(1, path → path startsWith "/api/")` plus the supported set. Java
+   config rather than `spring.mvc.api-version.*` properties for one reason: the path predicate (which keeps
+   framework endpoints like springdoc's `/v3/api-docs` out of version resolution) is only expressible
+   programmatically. No version attributes on mappings, no hardcoded `v1` prefix; unsupported versions are
+   rejected with `400 UNSUPPORTED_API_VERSION`. Evolving to v2 = add `"2"` to the supported set + a
+   `version = "2"` handler only where behavior diverges. (`default-version` is deliberately absent: the path
+   resolver never yields "no version", so a default cannot apply to path-segment versioning.)
 5. **`Idempotency-Key` header on every POST** (Stripe/PayPal-style): network retries must not double-debit.
    Replay returns the original representation; same key with a different body is a `409`.
 6. **Customer vocabulary on the wire, accounting vocabulary inside** — endpoints say withdraw/deposit, the
@@ -121,8 +122,12 @@ SPRING_PROFILES_ACTIVE=dev ./gradlew bootRun   # Grafana at http://localhost:300
 
 - **Spring Cloud AWS** (`io.awspring.cloud`) has no Spring Boot 4-compatible release (latest: 3.4.0, Boot 3.x) — the
   raw AWS SDK v2 `SnsClient` is wired manually in `SnsClientConfig`, pointed at LocalStack via `app.aws.*` properties.
-- **springdoc-openapi** likewise has no Boot 4 release (latest: 2.8.6) — only `swagger-annotations-jakarta` is on the
-  classpath so `@Operation`/`@Tag` compile; add the UI starter once a Boot 4-compatible version ships.
+- **springdoc-openapi 3.x is the Boot 4 line** — `springdoc-openapi-starter-webmvc-ui:3.0.3` serves the UI at
+  `/swagger-ui/index.html` and the spec at `/v3/api-docs` (the deprecated 1.x `springdoc-openapi-ui` must never be
+  used). Two integration gotchas, both hit and fixed here: an explicit `swagger-annotations-jakarta` pin alongside
+  the starter causes `NoSuchMethodError: Schema.$dynamicRef()` during spec generation (let the starter own the
+  swagger stack), and path-segment API versioning must be scoped to `/api/**` via the programmatic path predicate
+  or springdoc's own `/v3/api-docs` is rejected as "version 'api-docs'".
 - The Spring Cloud BOM (`2025.1.1`) is imported and ready, though no Spring Cloud starter is currently used.
 - **LocalStack** is pinned to `4.14` — the last free community line; the `2026.x` CalVer images exit at startup unless
   a `LOCALSTACK_AUTH_TOKEN` (paid license) is provided.
