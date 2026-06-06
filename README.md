@@ -133,17 +133,102 @@ SPRING_PROFILES_ACTIVE=dev ./gradlew bootRun   # Grafana at http://localhost:300
 
 ## 1. Approach outline
 
-> _TODO — outline the approach; the fundamental business capability (withdraw + notify) remains unchanged._
+The fundamental business capability is preserved exactly: **debit an account if funds are sufficient, record the
+movement, and emit a withdrawal notification.** Everything around it is restructured.
+
+The original snippet conflated four responsibilities inside one controller method — HTTP handling, persistence,
+business invariants and infrastructure (SNS) — and contained these concrete defects:
+
+| # | Defect in the original | Consequence | Fix |
+|---|---|---|---|
+| 1 | SNS publish is **unreachable** (every branch returns first) | The withdrawal event never fires | Domain event raised in the transaction, published `AFTER_COMMIT` |
+| 2 | **Check-then-act** on the balance (read, then `balance - ?`) | Lost update under concurrency; parallel withdrawals overdraw | Atomic guarded `UPDATE … WHERE balance >= :amount` evaluated by the database |
+| 3 | **No transaction boundary** | Balance update and event are a dual-write | `@Transactional` unit of work; event tied to commit |
+| 4 | Controller does everything | Untestable, violates SRP | Layered controller → service → repository with anti-corruption mapping |
+| 5 | `SnsClient` built in the constructor, hardcoded region/ARN | Not injectable, not configurable, not testable | Injected bean; all settings externalized with overridable defaults |
+| 6 | Returns `String` (`"Withdrawal successful"`) | No HTTP semantics; lies to clients and proxies | `201 Created` + typed envelope; errors via `@RestControllerAdvice` |
+| 7 | **No idempotency** | A network retry double-debits | Mandatory `Idempotency-Key` + transactional reservation/replay aspect |
+| 8 | Manual JSON via `String.format` | Fragile, no escaping | Jackson serialization |
+| 9 | Sequential `Long` account ids | Enumeration/information leak | UUID primary keys (`BaseEntity`) |
+| 10 | No movement record | No audit trail | Immutable `transactions` ledger as the first-class resource |
+
+The redesign models the **ledger entry as the resource**: withdrawals and deposits are command sub-resources that
+append immutable `DEBIT`/`CREDIT` entries, which also back the statement and single-transaction queries (full REST
+rationale in the section above). Correctness rests on three pillars: the **database** enforces the funds invariant
+atomically, the **unique idempotency key** makes retries safe without application locks, and the **after-commit
+listener** guarantees no event is ever emitted for a rolled-back withdrawal.
 
 ## 2. Implementation choices
 
-> _TODO — elaborate on design/implementation decisions (transactionality, atomic balance update, event publishing
-> reliability e.g. transactional outbox, error handling, observability, idempotency, money handling, …)._
+- **Atomic balance mutation** — native `UPDATE … SET balance = balance - :amount WHERE id = :id AND balance >=
+  :amount RETURNING balance`: funds check, debit and new balance in **one statement**. No lost updates, no lock
+  waits, no re-read; `0` rows ⇒ insufficient funds (account existence is checked only on the failure path to
+  sharpen 404 vs 422). `@Version` optimistic locking remains as belt-and-braces for entity-mediated writes.
+- **Idempotency shares the business transaction** — the `@Idempotent` aspect (at `HIGHEST_PRECEDENCE`, opening the
+  transaction via `TransactionTemplate` so the inner `@Transactional` joins it) flushes a unique key reservation,
+  runs the business operation, and caches the response in the same physical transaction. Failure rolls everything
+  back and frees the key; the duplicate-key exception is caught *outside* the rolled-back transaction and served
+  from a fresh read. Same key + same fingerprint ⇒ replay of the original response; different body ⇒ `409`. The
+  unique constraint — not an application lock — serializes racing retries.
+- **Event publishing** — `@TransactionalEventListener(AFTER_COMMIT)` bridges the domain event to an SNS adapter
+  behind a port. Publish failures are logged, never propagated (the withdrawal has committed; the client must not
+  see it fail). This is at-most-once delivery; the production upgrade is a **transactional outbox** (same-transaction
+  event row + relay/CDC) for at-least-once — documented trade-off, deliberately not built here.
+- **Money handling** — `BigDecimal` end-to-end, `NUMERIC(19,4)` columns, `@Digits(15,4)` validation; comparisons via
+  `compareTo` (scale-insensitive). Currency stored per account (single-currency operations assumed in scope).
+- **Validation** — declarative only: `@Valid` at the controller, class-level `@Validated` + parameter constraints at
+  the service (defense-in-depth); zero manual checks. Business invariants that live in database state (existence,
+  funds) are exceptions mapped by the advice.
+- **Error handling** — every failure path maps through one `@RestControllerAdvice` to a uniform envelope: stable
+  machine-readable `error.code`, human message, field violations and `traceId`. Controllers contain no try/catch and
+  no `ResponseEntity`; statuses are declared via `@ResponseStatus`.
+- **Observability** — `@Observed` on every service operation (timer metrics + trace spans from one annotation),
+  OTLP export of metrics/traces/logs to a Grafana LGTM stack under the dev profile, `traceId` in every response.
+- **Read path** — immutable ledger entries are cached (Caffeine, `sync=true`): a write-once row can never go stale,
+  so the cache is trivially correct. Statements are deliberately uncached (mutation-coupled, eviction complexity
+  outweighs the win). Caching policy follows **mutability, not traffic**.
+- **Layering** — strict dto / domain / persistence-model separation with MapStruct as the only crossing point. This
+  paid off mechanically: swapping pessimistic locking for the guarded `RETURNING` update touched only `jpa/repo`,
+  and the idempotency cache replays pure domain records.
+- **Testing** — 14 Cucumber scenarios (positive + negative per flow) against **real** Postgres and LocalStack via
+  Testcontainers: idempotent replay debits once, key reuse with a different body conflicts, two parallel withdrawals
+  of 70 against a balance of 100 yield exactly one `201` and one `422`, cache hits proven via Caffeine statistics.
 
 ## 3. Fixed code
 
-> _TODO — see `src/main/java/com/example/bank/` (branches `feat-jpa` / `feat-jdbc`)._
+The fixed implementation is this repository (branch `feat-jpa`; `feat-jdbc` carries the Spring Data JDBC variant of
+the persistence baseline). Entry points, in reading order:
+
+1. [`AccountTransactionController`](src/main/java/com/example/bank/api/AccountTransactionController.java) — the lean HTTP boundary
+2. [`AccountTransactionService`](src/main/java/com/example/bank/service/AccountTransactionService.java) — the business flow (compare directly with the original snippet)
+3. [`AccountRepo`](src/main/java/com/example/bank/jpa/repo/AccountRepo.java) — the atomic guarded `RETURNING` debit
+4. [`IdempotencyAspect`](src/main/java/com/example/bank/idempotency/IdempotencyAspect.java) — retry safety
+5. [`WithdrawalEventListener`](src/main/java/com/example/bank/event/WithdrawalEventListener.java) / [`SnsWithdrawalEventPublisher`](src/main/java/com/example/bank/event/SnsWithdrawalEventPublisher.java) — the fixed notification path
+6. [`GlobalExceptionHandler`](src/main/java/com/example/bank/api/advice/GlobalExceptionHandler.java) — centralized error semantics
 
 ## 4. Library usage notes
 
-> _TODO — document any non-obvious library usage._
+Non-obvious usage, including what required ground-truthing against Spring Boot 4.0.6 (full war stories with
+symptoms and fixes: [`docs/lessons.md`](docs/lessons.md)):
+
+- **Boot 4 module split** — Liquibase, AOP, tracing and OpenTelemetry support moved out of the classic
+  starters/autoconfigure: `spring-boot-liquibase`, bare `aspectjweaver` (starter-aop is gone),
+  `spring-boot-micrometer-tracing-opentelemetry` (the bare Micrometer bridge yields no `Tracer` bean),
+  `spring-boot-starter-opentelemetry`. Several published Boot 4 demos use property names that do not exist in
+  4.0.6 — the OTLP export properties are `management.*`, verified against the modules'
+  `spring-configuration-metadata.json`.
+- **Jackson 3** — Boot 4 ships `tools.jackson.*` packages (annotations remain `com.fasterxml.jackson.annotation`).
+- **Spring Framework 7 API versioning** — the `{api-version}` path segment + yml-declared supported set; the
+  `version` mapping attribute or `supported` list is mandatory (an empty supported set rejects every request), and
+  `default-version` cannot apply to path-segment resolution.
+- **MapStruct** — `componentModel = "spring"`; generated mappers are the only layer-crossing code, including the
+  lazy-proxy-safe `account.id` read that avoids initializing the `@ManyToOne` reference.
+- **`@Modifying(clearAutomatically)` interaction** — a clearing modifying query detaches every loaded entity in the
+  transaction, including ones held by surrounding aspects (it silently dropped the idempotency record's `COMPLETED`
+  state until re-merged). The final `RETURNING`-based design removes the clearing query entirely.
+- **Spring Cloud AWS / springdoc** — no Boot 4-compatible releases at submission time; raw AWS SDK v2 (`SnsClient`
+  bean) and `swagger-annotations-jakarta` respectively, with the springdoc starter to be added the moment a
+  compatible version ships (`springdoc-openapi-ui` 1.x is deprecated and must not be used).
+- **Testcontainers** — versions are no longer managed by the Boot 4 BOM (explicit `testcontainers-bom` import);
+  LocalStack is pinned to the `4.x` community line (`2026.x` images require a paid license token) and reuses the
+  same SNS init hook as docker compose.
