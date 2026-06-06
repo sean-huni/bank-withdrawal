@@ -1,4 +1,4 @@
-package com.example.bank.model;
+package com.example.bank.jpa.model;
 
 import java.time.Instant;
 import java.util.UUID;
