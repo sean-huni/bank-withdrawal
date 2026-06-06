@@ -6,7 +6,7 @@ CREATE TABLE accounts
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     holder_name VARCHAR(255)   NOT NULL,
     balance     NUMERIC(19, 4) NOT NULL,
-    currency    CHAR(3)        NOT NULL DEFAULT 'EUR',
+    currency    VARCHAR(3)     NOT NULL DEFAULT 'EUR',
     version     BIGINT         NOT NULL DEFAULT 0,
     created_at  TIMESTAMPTZ    NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ    NOT NULL DEFAULT now(),
