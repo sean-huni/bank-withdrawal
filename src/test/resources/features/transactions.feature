@@ -30,6 +30,17 @@ Feature: Deposits and account statement
     Then the operation fails with status 400 and error code "UNSUPPORTED_API_VERSION"
     And the account balance of "liam" is 100.00
 
+  Scenario: The Swagger UI sort placeholder is rejected as a validation error
+    Given an account for "mona" with balance 100.00
+    When the statement of "mona" is requested sorted by '["string"]'
+    Then the operation fails with status 400 and error code "VALIDATION_FAILED"
+    And the error reports a violation on field "sort"
+
+  Scenario: A statement sorted by a property that is not sortable is rejected
+    Given an account for "noah" with balance 100.00
+    When the statement of "noah" is requested sorted by "balance"
+    Then the operation fails with status 400 and error code "VALIDATION_FAILED"
+
   Scenario: Repeated reads of the same transaction are served from the cache
     Given an account for "kate" with balance 100.00
     When "kate" withdraws 40.00

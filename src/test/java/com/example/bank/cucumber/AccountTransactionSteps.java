@@ -166,6 +166,13 @@ public class AccountTransactionSteps {
 		lastResult = get("/api/v1/accounts/{accountId}/transactions", UUID.randomUUID());
 	}
 
+	@When("the statement of {string} is requested sorted by {string}")
+	public void statementSortedBy(final String holder, final String sortProperty) {
+		// the template encodes the variable exactly like Swagger UI does (%5B%22string%22%5D)
+		lastResult = get("/api/v1/accounts/{accountId}/transactions?sort={sort}",
+				accountsByHolder.get(holder), sortProperty);
+	}
+
 	@When("a transaction lookup for {string} uses an unknown transaction id")
 	public void unknownTransactionLookup(final String holder) {
 		lastResult = get("/api/v1/accounts/{accountId}/transactions/{transactionId}",
