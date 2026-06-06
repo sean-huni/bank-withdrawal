@@ -1,7 +1,7 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '4.0.6'
-	id 'io.spring.dependency-management' version '1.1.7'
+	id 'org.springframework.boot' version "${springBootVersion}"
+	id 'io.spring.dependency-management' version "${dependencyManagementVersion}"
 }
 
 group = 'com.example'
@@ -22,11 +22,27 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	// AOP (idempotency + @Observed timing aspects) and distributed tracing (traceId in envelope/logs).
+	// Boot 4 dropped spring-boot-starter-aop — spring-aop ships with core, only the weaver is needed.
+	implementation 'org.aspectj:aspectjweaver'
+	// Boot 4 module (not the bare micrometer bridge) — provides the auto-configured OTel Tracer
+	implementation 'org.springframework.boot:spring-boot-micrometer-tracing-opentelemetry'
+	// Caching — immutable ledger reads served from Caffeine
+	implementation 'org.springframework.boot:spring-boot-starter-cache'
+	implementation 'com.github.ben-manes.caffeine:caffeine'
 
-	// Persistence plumbing — the Spring Data starter is branch-specific (feat-jpa / feat-jdbc)
-	implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+	// Persistence — Spring Data JPA variant (feat-jpa)
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	// Boot 4 moved Liquibase auto-configuration into its own module
+	implementation 'org.springframework.boot:spring-boot-liquibase'
 	implementation 'org.liquibase:liquibase-core'
 	runtimeOnly 'org.postgresql:postgresql'
+
+	// Monitoring & Observability — OTLP export of metrics, traces and logs (Grafana LGTM stack)
+	runtimeOnly 'io.micrometer:micrometer-registry-otlp'
+	implementation 'org.springframework.boot:spring-boot-starter-opentelemetry'
+	// logs → OTLP: io.opentelemetry.instrumentation is not managed by the Boot/OTel BOMs
+	implementation "io.opentelemetry.instrumentation:opentelemetry-logback-appender-1.0:${otelLogbackAppenderVersion}"
 
 	// Eventing — raw AWS SDK v2; Spring Cloud AWS has no Spring Boot 4 compatible release yet (see README)
 	implementation platform("software.amazon.awssdk:bom:${awsSdkVersion}")
@@ -40,8 +56,10 @@ dependencies {
 	annotationProcessor "org.projectlombok:lombok-mapstruct-binding:${lombokMapstructBindingVersion}"
 	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 
-	// OpenAPI annotations only — springdoc UI has no Spring Boot 4 compatible release yet (see README)
-	implementation "io.swagger.core.v3:swagger-annotations-jakarta:${swaggerAnnotationsVersion}"
+	// OpenAPI: springdoc 3.x is the Boot 4 line (1.x springdoc-openapi-ui is deprecated — never use it).
+	// No explicit swagger-annotations pin: the starter brings version-consistent annotations; a stale
+	// pin caused NoSuchMethodError: Schema.$dynamicRef() during spec generation.
+	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
 
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
@@ -52,6 +70,11 @@ dependencies {
 	testImplementation 'org.testcontainers:junit-jupiter'
 	testImplementation 'org.testcontainers:postgresql'
 	testImplementation 'org.testcontainers:localstack'
+	testImplementation platform("io.cucumber:cucumber-bom:${cucumberVersion}")
+	testImplementation 'io.cucumber:cucumber-java'
+	testImplementation 'io.cucumber:cucumber-spring'
+	testImplementation 'io.cucumber:cucumber-junit-platform-engine'
+	testImplementation 'org.junit.platform:junit-platform-suite'
 	testCompileOnly 'org.projectlombok:lombok'
 	testAnnotationProcessor 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
