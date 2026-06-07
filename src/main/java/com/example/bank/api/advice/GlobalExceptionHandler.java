@@ -87,7 +87,8 @@ public class GlobalExceptionHandler {
 				.map(fieldError -> new ApiError.FieldViolation(fieldError.getField(), fieldError.getDefaultMessage()))
 				.toList();
 		log.warn("Request validation failed: {}", violations);
-		return failure(new ApiError("VALIDATION_FAILED", "Request validation failed", violations));
+		return failure(new ApiError(ErrorCode.VALIDATION_FAILED.wireCode(),
+				resolve(ErrorCode.VALIDATION_FAILED), violations));
 	}
 
 	/**
@@ -102,7 +103,8 @@ public class GlobalExceptionHandler {
 						leafProperty(violation.getPropertyPath().toString()), violation.getMessage()))
 				.toList();
 		log.warn("Constraint violations at service boundary: {}", violations);
-		return failure(new ApiError("VALIDATION_FAILED", "Request validation failed", violations));
+		return failure(new ApiError(ErrorCode.VALIDATION_FAILED.wireCode(),
+				resolve(ErrorCode.VALIDATION_FAILED), violations));
 	}
 
 	/**
@@ -120,23 +122,22 @@ public class GlobalExceptionHandler {
 						.map(error -> new ApiError.FieldViolation(fieldOf(result, error), error.getDefaultMessage())))
 				.toList();
 		log.warn("Handler method validation failed: {}", violations);
-		return failure(new ApiError("VALIDATION_FAILED", "Request validation failed", violations));
+		return failure(new ApiError(ErrorCode.VALIDATION_FAILED.wireCode(),
+				resolve(ErrorCode.VALIDATION_FAILED), violations));
 	}
 
 	@ExceptionHandler(MissingRequestHeaderException.class)
 	@ResponseStatus(HttpStatus.BAD_REQUEST)
 	public ApiResponse<Void> handleMissingHeader(final MissingRequestHeaderException ex) {
 		log.warn("Missing required header: {}", ex.getHeaderName());
-		return failure(ApiError.of("MISSING_HEADER",
-				"Required header '%s' is missing".formatted(ex.getHeaderName())));
+		return failure(errorOf(ErrorCode.MISSING_HEADER, ex.getHeaderName()));
 	}
 
 	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
 	@ResponseStatus(HttpStatus.BAD_REQUEST)
 	public ApiResponse<Void> handleTypeMismatch(final MethodArgumentTypeMismatchException ex) {
 		log.warn("Invalid parameter '{}': {}", ex.getName(), ex.getMessage());
-		return failure(ApiError.of("INVALID_PARAMETER",
-				"Parameter '%s' has an invalid value".formatted(ex.getName())));
+		return failure(errorOf(ErrorCode.INVALID_PARAMETER, ex.getName()));
 	}
 
 	/** Spring Framework 7 native API versioning — unsupported {version} path segment. */
@@ -144,37 +145,35 @@ public class GlobalExceptionHandler {
 	@ResponseStatus(HttpStatus.BAD_REQUEST)
 	public ApiResponse<Void> handleInvalidApiVersion(final InvalidApiVersionException ex) {
 		log.warn("Unsupported API version requested: {}", ex.getVersion());
-		return failure(ApiError.of("UNSUPPORTED_API_VERSION",
-				"API version '%s' is not supported".formatted(ex.getVersion())));
+		return failure(errorOf(ErrorCode.UNSUPPORTED_API_VERSION, ex.getVersion()));
 	}
 
 	@ExceptionHandler(MissingApiVersionException.class)
 	@ResponseStatus(HttpStatus.BAD_REQUEST)
 	public ApiResponse<Void> handleMissingApiVersion(final MissingApiVersionException ex) {
 		log.warn("API version missing from request");
-		return failure(ApiError.of("MISSING_API_VERSION", "An API version is required"));
+		return failure(errorOf(ErrorCode.MISSING_API_VERSION));
 	}
 
 	@ExceptionHandler(HttpMessageNotReadableException.class)
 	@ResponseStatus(HttpStatus.BAD_REQUEST)
 	public ApiResponse<Void> handleUnreadable(final HttpMessageNotReadableException ex) {
 		log.warn("Malformed request body: {}", ex.getMessage());
-		return failure(ApiError.of("MALFORMED_BODY", "Malformed request body"));
+		return failure(errorOf(ErrorCode.MALFORMED_BODY));
 	}
 
 	@ExceptionHandler(OptimisticLockingFailureException.class)
 	@ResponseStatus(HttpStatus.CONFLICT)
 	public ApiResponse<Void> handleOptimisticLock(final OptimisticLockingFailureException ex) {
 		log.warn("Concurrent modification: {}", ex.getMessage());
-		return failure(ApiError.of("CONCURRENT_MODIFICATION",
-				"The resource was modified concurrently; retry"));
+		return failure(errorOf(ErrorCode.CONCURRENT_MODIFICATION));
 	}
 
 	@ExceptionHandler(DataIntegrityViolationException.class)
 	@ResponseStatus(HttpStatus.CONFLICT)
 	public ApiResponse<Void> handleDataIntegrity(final DataIntegrityViolationException ex) {
 		log.warn("Data integrity violation: {}", ex.getMessage());
-		return failure(ApiError.of("DATA_INTEGRITY_VIOLATION", "The request conflicts with existing data"));
+		return failure(errorOf(ErrorCode.DATA_INTEGRITY_VIOLATION));
 	}
 
 	/**
@@ -185,14 +184,14 @@ public class GlobalExceptionHandler {
 	@ResponseStatus(HttpStatus.NOT_FOUND)
 	public ApiResponse<Void> handleNoResource(final NoResourceFoundException ex) {
 		log.warn("No resource for path: {}", ex.getResourcePath());
-		return failure(ApiError.of("RESOURCE_NOT_FOUND", "No resource at the requested path"));
+		return failure(errorOf(ErrorCode.RESOURCE_NOT_FOUND));
 	}
 
 	@ExceptionHandler(Exception.class)
 	@ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
 	public ApiResponse<Void> handleUnexpected(final Exception ex) {
 		log.error("Unhandled exception", ex);
-		return failure(ApiError.of("INTERNAL_ERROR", "An unexpected error occurred"));
+		return failure(errorOf(ErrorCode.INTERNAL_ERROR));
 	}
 
 	private ApiResponse<Void> failure(final ApiError error) {

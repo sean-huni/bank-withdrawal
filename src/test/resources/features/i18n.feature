@@ -29,3 +29,10 @@ Feature: Localized error messages
     When an unknown account withdraws 50.00
     Then the operation fails with status 404 and error code "ACCOUNT_NOT_FOUND"
     And the error message contains "haina kuwanikwa"
+
+  Scenario: A framework error resolves in Shona with its argument interpolated
+    Given the client speaks "sn"
+    And an account for "tendai" with balance 100.00
+    When "tendai" withdraws 50.00 without an Idempotency-Key
+    Then the operation fails with status 400 and error code "MISSING_HEADER"
+    And the error message is "Musoro unodiwa 'Idempotency-Key' haupo"
