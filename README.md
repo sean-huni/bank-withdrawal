@@ -173,7 +173,11 @@ Tempo, Loki). The app exports **metrics, traces and logs** via OTLP — but only
 
 ```shell
 SPRING_PROFILES_ACTIVE=dev ./gradlew bootRun   # Grafana at http://localhost:3000 (admin/admin)
+                                               # Prometheus UI at http://localhost:9090
 ```
+
+Both UIs are also linked from the dev startup banner (override via `GRAFANA_URL` /
+`PROMETHEUS_URL` in `.env`).
 
 - `application-dev.yaml` carries all Grafana/Prometheus-facing config (OTLP endpoints on :4318, 100% trace
   sampling, 10s metric step); the default profile disables OTLP export so tests/CI never dial a collector.

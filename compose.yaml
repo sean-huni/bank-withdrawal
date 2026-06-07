@@ -16,12 +16,14 @@ services:
 
   # All-in-one observability: Grafana UI (3000) + embedded OTLP collector (4317 gRPC / 4318 HTTP)
   # backed by Prometheus/Mimir (metrics), Tempo (traces) and Loki (logs).
+  # 9090 exposes the embedded Prometheus UI directly (also linked from the dev banner).
   grafana-lgtm:
     image: 'grafana/otel-lgtm:0.28.0'
     ports:
       - '3000:3000'
       - '4317:4317'
       - '4318:4318'
+      - '9090:9090'
 
   localstack:
     # 4.x is the community line — the 2026.x CalVer images require a LOCALSTACK_AUTH_TOKEN (license)

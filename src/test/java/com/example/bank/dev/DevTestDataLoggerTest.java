@@ -84,6 +84,9 @@ class DevTestDataLoggerTest {
 				.contains("Idempotency-Key")
 				.contains("Accept-Language")
 				.contains("en, sn")
+				// observability links — defaults match the compose.yaml LGTM container
+				.contains("Grafana").contains("http://localhost:3000")
+				.contains("Prometheus").contains("http://localhost:9090")
 				.contains(alice.getId().toString())
 				.contains("Alice").contains("1000.0000")
 				.contains(bob.getId().toString())
