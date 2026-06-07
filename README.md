@@ -24,10 +24,32 @@ sdk env                      # activate them for this shell (or enable sdkman_au
 `compose.yaml` provisions `postgres:18-alpine3.23` and LocalStack (SNS only); `localstack/init-sns.sh` creates the
 `bank-withdrawal-events` topic on startup.
 
-**Local overrides:** copy `.env.example` → `.env` (gitignored). The app auto-loads it via
-`spring.config.import: optional:file:.env[.properties]` and docker compose reads the same file natively —
-one override point for both. All yml values keep working defaults (`${VAR:default}` placeholders), so a clean
-clone runs with no `.env` at all; precedence is yml default < `.env` < real environment variable.
+### `.env` setup
+
+Copy `.env.example` → `.env`, or start from this minimal skeleton:
+
+```dotenv
+# ENV files should not be added to git, this is just a skeleton to build upon
+SPRING_PROFILES_ACTIVE=dev
+```
+
+`.env` is gitignored and must stay that way — it is the place for personal/secret values. A clean clone also
+runs with no `.env` at all: every yml value keeps a working default (`${VAR:default}` placeholders). See
+`.env.example` for all supported keys (`SERVER_PORT`, `AWS_*`, `OTLP_BASE_URL`, `POSTGRES_*`).
+
+The same file is consumed three ways — one override point for everything:
+
+1. **Spring** auto-loads it as a property source (`spring.config.import: optional:file:.env[.properties]`),
+   feeding every `${VAR:default}` placeholder.
+2. **Gradle** (`bootRun` / `bootTestRun`) exports it as real environment variables — required for
+   `SPRING_PROFILES_ACTIVE`, whose relaxed mapping to `spring.profiles.active` only applies to genuine OS
+   environment, not imported property files.
+3. **docker compose** reads it natively (`POSTGRES_*`).
+
+Precedence: yml default < `.env` < real environment variable (the shell always wins, e.g.
+`SPRING_PROFILES_ACTIVE=default ./gradlew bootRun` overrides the file). With the `dev` profile active,
+startup prints a **DEV TEST DATA** banner: Swagger UI URL, seeded account/transaction ids, sortable fields
+and a fresh `Idempotency-Key` — everything needed to drive the API from Swagger UI.
 
 ## Architectural approaches
 
