@@ -6,6 +6,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import io.swagger.v3.oas.models.Paths;
+import io.swagger.v3.oas.models.media.StringSchema;
+import io.swagger.v3.oas.models.parameters.Parameter;
 
 /**
  * springdoc is unaware of Spring Framework 7 native API versioning: the
@@ -28,5 +30,19 @@ public class OpenApiConfig {
 					rewritten.addPathItem(path.replace("{api-version}", "v%s".formatted(version)), item));
 			openApi.setPaths(rewritten);
 		};
+	}
+
+	/** Documents the locale switch on every operation — enum sourced from SupportedLanguages. */
+	@Bean
+	public OpenApiCustomizer acceptLanguageHeaderCustomizer() {
+		return openApi -> openApi.getPaths().values().forEach(pathItem ->
+				pathItem.readOperations().forEach(operation -> operation.addParametersItem(
+						new Parameter()
+								.in("header")
+								.name("Accept-Language")
+								.description("Response language (%s); unsupported values fall back to English"
+										.formatted(String.join(", ", SupportedLanguages.TAGS)))
+								.required(false)
+								.schema(new StringSchema()._enum(SupportedLanguages.TAGS)))));
 	}
 }

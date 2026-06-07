@@ -19,6 +19,7 @@ import org.springframework.stereotype.Component;
 
 import com.example.bank.api.AccountTransactionController;
 import com.example.bank.api.validation.AllowedSortProperties;
+import com.example.bank.config.SupportedLanguages;
 import com.example.bank.jdbc.model.AccountEntity;
 import com.example.bank.jdbc.model.TransactionEntity;
 import com.example.bank.jdbc.repo.AccountRepo;
@@ -58,6 +59,11 @@ public class DevTestDataLogger {
 		banner.append("Base path       : /api/v1/accounts/{accountId}  (POST /withdrawals | POST /deposits | GET /transactions | GET /transactions/{transactionId})\n");
 		banner.append("Sortable fields : %s  (statement ?sort=)\n".formatted(String.join(", ", statementSortProperties())));
 		banner.append("Sort examples   : sort=createdAt,desc | sort=amount,asc | sort=[\"amount,asc\"] (Swagger-style, also accepted)\n");
+		banner.append("Locales         : %s  (Accept-Language header; unsupported values fall back to English)\n"
+				.formatted(String.join(", ", SupportedLanguages.TAGS)));
+		// last tag = the newest non-default locale — stays true when TAGS grows
+		banner.append("Locale example  : curl -H 'Accept-Language: %s' %s/api/v1/accounts/{accountId}/transactions\n"
+				.formatted(SupportedLanguages.TAGS.getLast(), baseUrl));
 		banner.append("Idempotency-Key : %s  (fresh UUID — required header on every POST; reuse replays, new key per new operation)\n"
 				.formatted(UUID.randomUUID()));
 		appendAccounts(banner);

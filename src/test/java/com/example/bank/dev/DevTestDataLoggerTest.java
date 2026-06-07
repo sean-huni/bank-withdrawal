@@ -82,6 +82,8 @@ class DevTestDataLoggerTest {
 				// whitelist is read from the controller's @AllowedSortProperties — must match it
 				.contains("createdAt, amount, type, balanceAfter")
 				.contains("Idempotency-Key")
+				.contains("Accept-Language")
+				.contains("en, sn")
 				.contains(alice.getId().toString())
 				.contains("Alice").contains("1000.0000")
 				.contains(bob.getId().toString())

@@ -150,6 +150,22 @@ curl -X POST localhost:8080/api/v1/accounts/<uuid>/withdrawals \
 7. **Errors are structured and machine-readable** — stable `error.code`, human message, per-field violations,
    and a `traceId` correlating the response with server-side traces/logs.
 
+## Internationalisation (i18n)
+
+Error messages are resolved per request from `src/main/resources/i18n/messages*.properties`
+via the `Accept-Language` header. Wire-level error codes (`ACCOUNT_NOT_FOUND`, …) are
+locale-independent — clients branch on codes, humans read messages.
+
+| Locale | Bundle | Notes |
+|---|---|---|
+| English | `messages.properties` | Base — also the fallback for unsupported locales |
+| Shona (`sn`) | `messages_sn.properties` | `curl -H 'Accept-Language: sn' …` |
+
+Validation messages come from the same catalog (constraint annotations carry braced keys,
+e.g. `{error.amount.positive}`); each field violation also exposes its machine-readable
+`code` (the bundle key) and the `rejectedValue`. A catalog completeness test fails the
+build if any referenced key is missing from any bundle.
+
 ## Observability — OpenTelemetry + Grafana LGTM
 
 `compose.yaml` includes `grafana/otel-lgtm` (all-in-one: Grafana + embedded OTLP collector + Prometheus/Mimir,
@@ -252,7 +268,7 @@ listener** guarantees no event is ever emitted for a rolled-back withdrawal.
   and the idempotency cache replays pure domain records.
 - **Persistence** — Spring Data JDBC keeps the persistence model deliberately simple: aggregates load and save eagerly
   in single statements, there is no persistence context or lazy proxying, and cross-aggregate references are plain ids.
-- **Testing** — 22 Cucumber scenarios (positive + negative per flow) run over real HTTP: `@SpringBootTest(RANDOM_PORT)`
+- **Testing** — 30 Cucumber scenarios (positive + negative per flow) run over real HTTP: `@SpringBootTest(RANDOM_PORT)`
   plus Spring Framework 7's `RestTestClient`, including W3C `traceparent` propagation scenarios that only a real server
   can satisfy. Scenarios cover: idempotent replay debits once, key reuse with a different body conflicts, two parallel
   withdrawals of 70 against a balance of 100 yield exactly one `201` and one `422`, cache hits proven via Caffeine

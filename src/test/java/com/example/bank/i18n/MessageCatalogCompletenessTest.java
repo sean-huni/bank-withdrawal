@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import com.example.bank.api.dto.req.DepositRequest;
 import com.example.bank.api.dto.req.WithdrawalRequest;
 import com.example.bank.api.validation.AllowedSortProperties;
+import com.example.bank.config.SupportedLanguages;
 import com.example.bank.exception.ErrorCode;
 
 import jakarta.validation.Validation;
@@ -44,14 +45,21 @@ class MessageCatalogCompletenessTest {
 	@Test
 	void everyTranslatedBundleDeclaresExactlyTheBaseKeys() throws IOException {
 		final Properties base = bundle("i18n/messages.properties");
-		final Properties shona = bundle("i18n/messages_sn.properties");
-		assertThat(shona.stringPropertyNames())
-				.containsExactlyInAnyOrderElementsOf(base.stringPropertyNames());
-		// key-set parity alone would let a whitespace "translation" through
-		for (final String key : base.stringPropertyNames()) {
-			assertThat(shona.getProperty(key))
-					.as("messages_sn.properties value for '%s' must not be blank", key)
-					.isNotBlank();
+		// driven by SupportedLanguages so a tag added there without a complete
+		// bundle is a red build, not a runtime fallback
+		for (final String tag : SupportedLanguages.TAGS) {
+			if ("en".equals(tag)) {
+				continue; // the base bundle itself
+			}
+			final Properties translated = bundle("i18n/messages_%s.properties".formatted(tag));
+			assertThat(translated.stringPropertyNames())
+					.containsExactlyInAnyOrderElementsOf(base.stringPropertyNames());
+			// key-set parity alone would let a whitespace "translation" through
+			for (final String key : base.stringPropertyNames()) {
+				assertThat(translated.getProperty(key))
+						.as("messages_%s.properties value for '%s' must not be blank", tag, key)
+						.isNotBlank();
+			}
 		}
 	}
 

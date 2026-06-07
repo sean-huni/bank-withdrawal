@@ -297,6 +297,20 @@ public class AccountTransactionSteps {
 		assertThat(lastResult.status()).isEqualTo(200);
 	}
 
+	@Then("every documented operation declares an {string} header parameter")
+	public void documentedOperationsDeclareHeader(final String headerName) {
+		final JsonNode paths = lastResult.body().at("/paths");
+		assertThat(paths.size()).isGreaterThan(0);
+		// assumes path items carry only HTTP-method entries — springdoc emits no
+		// path-level summary/parameters fields unless explicitly configured
+		paths.valueStream().forEach(pathItem -> pathItem.valueStream().forEach(operation ->
+				assertThat(operation.at("/parameters").valueStream()
+						.anyMatch(parameter -> headerName.equals(parameter.at("/name").asString())
+								&& "header".equals(parameter.at("/in").asString())))
+						.as("operation must document the %s header", headerName)
+						.isTrue()));
+	}
+
 	@Then("every documented path starts with {string} and carries no version placeholder")
 	public void documentedPathsCarryConcreteVersion(final String prefix) {
 		final var documentedPaths = lastResult.body().at("/paths").propertyNames();
