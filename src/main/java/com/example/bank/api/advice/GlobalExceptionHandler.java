@@ -32,6 +32,7 @@ import com.example.bank.exception.IdempotencyConflictException;
 import com.example.bank.exception.InsufficientFundsException;
 import com.example.bank.exception.TransactionNotFoundException;
 
+import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -84,11 +85,10 @@ public class GlobalExceptionHandler {
 	@ResponseStatus(HttpStatus.BAD_REQUEST)
 	public ApiResponse<Void> handleValidation(final MethodArgumentNotValidException ex) {
 		final List<ApiError.FieldViolation> violations = ex.getBindingResult().getFieldErrors().stream()
-				.map(fieldError -> new ApiError.FieldViolation(fieldError.getField(), fieldError.getDefaultMessage()))
+				.map(this::toViolation)
 				.toList();
 		log.warn("Request validation failed: {}", violations);
-		return failure(new ApiError(ErrorCode.VALIDATION_FAILED.wireCode(),
-				resolve(ErrorCode.VALIDATION_FAILED), violations));
+		return failure(validationError(violations));
 	}
 
 	/**
@@ -99,12 +99,10 @@ public class GlobalExceptionHandler {
 	@ResponseStatus(HttpStatus.BAD_REQUEST)
 	public ApiResponse<Void> handleConstraintViolation(final ConstraintViolationException ex) {
 		final List<ApiError.FieldViolation> violations = ex.getConstraintViolations().stream()
-				.map(violation -> new ApiError.FieldViolation(
-						leafProperty(violation.getPropertyPath().toString()), violation.getMessage()))
+				.map(this::toViolation)
 				.toList();
 		log.warn("Constraint violations at service boundary: {}", violations);
-		return failure(new ApiError(ErrorCode.VALIDATION_FAILED.wireCode(),
-				resolve(ErrorCode.VALIDATION_FAILED), violations));
+		return failure(validationError(violations));
 	}
 
 	/**
@@ -119,11 +117,10 @@ public class GlobalExceptionHandler {
 	public ApiResponse<Void> handleHandlerMethodValidation(final HandlerMethodValidationException ex) {
 		final List<ApiError.FieldViolation> violations = ex.getParameterValidationResults().stream()
 				.flatMap(result -> result.getResolvableErrors().stream()
-						.map(error -> new ApiError.FieldViolation(fieldOf(result, error), error.getDefaultMessage())))
+						.map(error -> toViolation(result, error)))
 				.toList();
 		log.warn("Handler method validation failed: {}", violations);
-		return failure(new ApiError(ErrorCode.VALIDATION_FAILED.wireCode(),
-				resolve(ErrorCode.VALIDATION_FAILED), violations));
+		return failure(validationError(violations));
 	}
 
 	@ExceptionHandler(MissingRequestHeaderException.class)
@@ -207,24 +204,76 @@ public class GlobalExceptionHandler {
 		return ApiError.of(errorCode.wireCode(), resolve(errorCode, args));
 	}
 
-	/**
-	 * THROWING overload on purpose — a missing key must never degrade to a
-	 * silent default; the catalog completeness test makes it unreachable.
-	 */
-	private String resolve(final ErrorCode errorCode, final Object... args) {
-		return messageSource.getMessage(errorCode.messageKey(), args, LocaleContextHolder.getLocale());
+	private ApiError validationError(final List<ApiError.FieldViolation> violations) {
+		return new ApiError(ErrorCode.VALIDATION_FAILED.wireCode(),
+				resolve(ErrorCode.VALIDATION_FAILED), violations);
+	}
+
+	private ApiError.FieldViolation toViolation(final FieldError fieldError) {
+		return new ApiError.FieldViolation(fieldError.getField(), constraintKeyOf(fieldError),
+				fieldError.getDefaultMessage(), truncate(fieldError.getRejectedValue()));
+	}
+
+	private ApiError.FieldViolation toViolation(final ConstraintViolation<?> violation) {
+		return new ApiError.FieldViolation(leafProperty(violation.getPropertyPath().toString()),
+				keyOf(violation.getMessageTemplate()), violation.getMessage(),
+				truncate(violation.getInvalidValue()));
 	}
 
 	/**
 	 * A violation with a property node beyond the parameter (e.g. the sort
 	 * whitelist's {@code addPropertyNode("sort")}) surfaces as a
 	 * {@link FieldError}; plain parameter violations only carry the parameter
-	 * name.
+	 * name and the rejected argument.
 	 */
-	private String fieldOf(final ParameterValidationResult result, final MessageSourceResolvable error) {
-		return error instanceof FieldError fieldError
-				? fieldError.getField()
-				: result.getMethodParameter().getParameterName();
+	private ApiError.FieldViolation toViolation(final ParameterValidationResult result,
+			final MessageSourceResolvable error) {
+		if (error instanceof FieldError fieldError) {
+			return toViolation(fieldError);
+		}
+		return new ApiError.FieldViolation(result.getMethodParameter().getParameterName(),
+				parameterKeyOf(result, error), error.getDefaultMessage(), truncate(result.getArgument()));
+	}
+
+	/** "{error.amount.positive}" → "error.amount.positive"; non-key templates → null. */
+	private String keyOf(final String messageTemplate) {
+		return messageTemplate != null && messageTemplate.startsWith("{error.") && messageTemplate.endsWith("}")
+				? messageTemplate.substring(1, messageTemplate.length() - 1)
+				: null;
+	}
+
+	private String constraintKeyOf(final FieldError fieldError) {
+		try {
+			return keyOf(fieldError.unwrap(ConstraintViolation.class).getMessageTemplate());
+		} catch (final IllegalArgumentException notBackedByAConstraint) {
+			return null;
+		}
+	}
+
+	/** Plain parameter violations don't surface as FieldError — recover the key via the result. */
+	private String parameterKeyOf(final ParameterValidationResult result, final MessageSourceResolvable error) {
+		try {
+			return keyOf(result.unwrap(error, ConstraintViolation.class).getMessageTemplate());
+		} catch (final IllegalArgumentException notBackedByAConstraint) {
+			return null;
+		}
+	}
+
+	/** Control chars are scrubbed — the rejected value is user input and reaches the logs. */
+	private String truncate(final Object rejectedValue) {
+		if (rejectedValue == null) {
+			return null;
+		}
+		final String text = rejectedValue.toString().replaceAll("\\p{Cntrl}", " ");
+		return text.length() <= 100 ? text : text.substring(0, 100);
+	}
+
+	/**
+	 * THROWING overload on purpose — a missing key must never degrade to a
+	 * silent default; the catalog completeness test makes it unreachable.
+	 */
+	private String resolve(final ErrorCode errorCode, final Object... args) {
+		return messageSource.getMessage(errorCode.messageKey(), args, LocaleContextHolder.getLocale());
 	}
 
 	/** "withdraw.amount" → "amount" — clients see the field, not the method path. */

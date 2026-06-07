@@ -11,8 +11,8 @@ import jakarta.validation.constraints.Positive;
 @Schema(description = "Withdrawal command — the account is identified by the request path")
 public record WithdrawalRequest(
 		@Schema(description = "Amount to debit; positive, max 15 integer / 4 fraction digits", example = "250.00")
-		@NotNull
-		@Positive
-		@Digits(integer = 15, fraction = 4)
+		@NotNull(message = "{error.amount.required}")
+		@Positive(message = "{error.amount.positive}")
+		@Digits(integer = 15, fraction = 4, message = "{error.amount.digits}")
 		BigDecimal amount) {
 }

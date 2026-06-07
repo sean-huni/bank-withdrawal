@@ -228,6 +228,29 @@ public class AccountTransactionSteps {
 		assertThat(violations.valueStream().map(v -> v.at("/field").asString())).contains(field);
 	}
 
+	@Then("the violation on field {string} has code {string} and message {string} and rejected value {string}")
+	public void violationDetails(final String field, final String code, final String message,
+			final String rejectedValue) {
+		final JsonNode violation = violationOn(field);
+		assertThat(violation.at("/code").asString()).isEqualTo(code);
+		assertThat(violation.at("/message").asString()).isEqualTo(message);
+		assertThat(violation.at("/rejectedValue").asString()).isEqualTo(rejectedValue);
+	}
+
+	@Then("the violation on field {string} has code {string} and message {string}")
+	public void violationCodeAndMessage(final String field, final String code, final String message) {
+		final JsonNode violation = violationOn(field);
+		assertThat(violation.at("/code").asString()).isEqualTo(code);
+		assertThat(violation.at("/message").asString()).isEqualTo(message);
+	}
+
+	private JsonNode violationOn(final String field) {
+		return lastResult.body().at("/error/violations").valueStream()
+				.filter(violation -> field.equals(violation.at("/field").asString()))
+				.findFirst()
+				.orElseThrow(() -> new AssertionError("no violation on field %s".formatted(field)));
+	}
+
 	@Then("both responses are created with the same transaction id")
 	public void bothResponsesIdentical() {
 		assertThat(previousResult.status()).isEqualTo(201);

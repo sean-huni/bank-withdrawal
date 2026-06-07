@@ -24,7 +24,7 @@ import jakarta.validation.Payload;
 @Constraint(validatedBy = AllowedSortPropertiesValidator.class)
 public @interface AllowedSortProperties {
 
-	String message() default "sort property is not sortable";
+	String message() default "{error.sort.unsupported}";
 
 	Class<?>[] groups() default {};
 

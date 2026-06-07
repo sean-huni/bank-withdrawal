@@ -36,3 +36,17 @@ Feature: Localized error messages
     When "tendai" withdraws 50.00 without an Idempotency-Key
     Then the operation fails with status 400 and error code "MISSING_HEADER"
     And the error message is "Musoro unodiwa 'Idempotency-Key' haupo"
+
+  Scenario: Validation violations are localized and machine-readable
+    Given the client speaks "sn"
+    And an account for "tariro" with balance 100.00
+    When "tariro" withdraws -5.00
+    Then the operation fails with status 400 and error code "VALIDATION_FAILED"
+    And the error message is "Kuongororwa kwechikumbiro kwakundikana"
+    And the violation on field "amount" has code "error.amount.positive" and message "Mari inofanira kupfuura ziro" and rejected value "-5.00"
+
+  Scenario: The sort whitelist violation carries its message key and the allowed list
+    Given an account for "vimbai" with balance 100.00
+    When the statement of "vimbai" is requested sorted by "balance"
+    Then the operation fails with status 400 and error code "VALIDATION_FAILED"
+    And the violation on field "sort" has code "error.sort.unsupported" and message "must be one of: createdAt, amount, type, balanceAfter"

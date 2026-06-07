@@ -67,7 +67,8 @@ public class AccountTransactionService {
     @Observed(name = "account.withdraw")
     public TransactionResponse withdraw(@NotNull final UUID accountId,
                                         @IdempotencyKey @NotNull final UUID idempotencyKey,
-                                        @NotNull @Positive @Digits(integer = 15, fraction = 4) final BigDecimal amount) {
+                                        @NotNull(message = "{error.amount.required}") @Positive(message = "{error.amount.positive}")
+                                        @Digits(integer = 15, fraction = 4, message = "{error.amount.digits}") final BigDecimal amount) {
         final BigDecimal balanceAfter = accountRepo.debit(accountId, amount)
                 .orElseThrow(() -> debitRejection(accountId, amount));
         final AccountTransaction transaction = recordTransaction(
@@ -94,7 +95,8 @@ public class AccountTransactionService {
     @Observed(name = "account.deposit")
     public TransactionResponse deposit(@NotNull final UUID accountId,
                                        @IdempotencyKey @NotNull final UUID idempotencyKey,
-                                       @NotNull @Positive @Digits(integer = 15, fraction = 4) final BigDecimal amount) {
+                                       @NotNull(message = "{error.amount.required}") @Positive(message = "{error.amount.positive}")
+                                       @Digits(integer = 15, fraction = 4, message = "{error.amount.digits}") final BigDecimal amount) {
         final BigDecimal balanceAfter = accountRepo.credit(accountId, amount)
                 .orElseThrow(() -> new AccountNotFoundException(accountId));
         final AccountTransaction transaction = recordTransaction(

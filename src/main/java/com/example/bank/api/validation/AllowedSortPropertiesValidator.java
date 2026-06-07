@@ -2,6 +2,7 @@ package com.example.bank.api.validation;
 
 import java.util.Set;
 
+import org.hibernate.validator.constraintvalidation.HibernateConstraintValidatorContext;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
@@ -10,20 +11,20 @@ import jakarta.validation.ConstraintValidatorContext;
 
 /**
  * Rejects a {@link Pageable} whose sort references any property outside the
- * annotation's whitelist. The violation message lists only the allowed names
- * (trusted annotation values) — the client-supplied property is deliberately
- * never echoed into the message template, which would be an EL-injection
- * vector in the interpolator.
+ * annotation's whitelist. The allowed list travels as a Hibernate Validator
+ * MESSAGE PARAMETER ({list}) — never string-built into the template, which
+ * would be an EL-injection vector; the client-supplied property is still
+ * deliberately never echoed.
  */
 public class AllowedSortPropertiesValidator implements ConstraintValidator<AllowedSortProperties, Pageable> {
 
 	private Set<String> allowed;
-	private String message;
+	private String allowedList;
 
 	@Override
 	public void initialize(final AllowedSortProperties constraint) {
 		allowed = Set.of(constraint.value());
-		message = "must be one of: %s".formatted(String.join(", ", constraint.value()));
+		allowedList = String.join(", ", constraint.value());
 	}
 
 	@Override
@@ -32,8 +33,9 @@ public class AllowedSortPropertiesValidator implements ConstraintValidator<Allow
 			return true;
 		}
 		context.disableDefaultConstraintViolation();
-		// property node "sort" surfaces as the violated field in the error envelope
-		context.buildConstraintViolationWithTemplate(message)
+		context.unwrap(HibernateConstraintValidatorContext.class).addMessageParameter("list", allowedList);
+		// default template = "{error.sort.unsupported}" → resolved from the shared bundle
+		context.buildConstraintViolationWithTemplate(context.getDefaultConstraintMessageTemplate())
 				.addPropertyNode("sort")
 				.addConstraintViolation();
 		return false;

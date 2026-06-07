@@ -6,11 +6,19 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Properties;
 
 import org.junit.jupiter.api.Test;
 
+import com.example.bank.api.dto.req.DepositRequest;
+import com.example.bank.api.dto.req.WithdrawalRequest;
+import com.example.bank.api.validation.AllowedSortProperties;
 import com.example.bank.exception.ErrorCode;
+
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
+import jakarta.validation.metadata.ConstraintDescriptor;
 
 /**
  * The catalog's safety net: a key referenced in code but missing from a bundle
@@ -19,6 +27,9 @@ import com.example.bank.exception.ErrorCode;
  * fallback to the base file would mask missing translations.
  */
 class MessageCatalogCompletenessTest {
+
+	private static final List<Class<?>> CONSTRAINED_PAYLOADS =
+			List.of(WithdrawalRequest.class, DepositRequest.class);
 
 	@Test
 	void everyErrorCodeKeyIsDeclaredInTheBaseBundle() throws IOException {
@@ -42,6 +53,30 @@ class MessageCatalogCompletenessTest {
 					.as("messages_sn.properties value for '%s' must not be blank", key)
 					.isNotBlank();
 		}
+	}
+
+	@Test
+	void everyBracedConstraintTemplateIsDeclaredInTheBaseBundle() throws Exception {
+		final Properties base = bundle("i18n/messages.properties");
+		try (var factory = Validation.buildDefaultValidatorFactory()) {
+			final Validator validator = factory.getValidator();
+			for (final Class<?> payload : CONSTRAINED_PAYLOADS) {
+				validator.getConstraintsForClass(payload).getConstrainedProperties().stream()
+						.flatMap(property -> property.getConstraintDescriptors().stream())
+						.map(ConstraintDescriptor::getMessageTemplate)
+						.filter(template -> template.startsWith("{error."))
+						.forEach(template -> assertThat(
+								base.getProperty(template.substring(1, template.length() - 1)))
+								.as("%s references %s", payload.getSimpleName(), template)
+								.isNotBlank());
+			}
+		}
+		// the sort whitelist's key lives on the annotation default, not a payload
+		final String sortTemplate =
+				(String) AllowedSortProperties.class.getMethod("message").getDefaultValue();
+		assertThat(base.getProperty(sortTemplate.substring(1, sortTemplate.length() - 1)))
+				.as("@AllowedSortProperties default message")
+				.isNotBlank();
 	}
 
 	private Properties bundle(final String classpathLocation) throws IOException {
