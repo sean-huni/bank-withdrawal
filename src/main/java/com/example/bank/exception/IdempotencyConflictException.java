@@ -1,8 +1,11 @@
 package com.example.bank.exception;
 
-public class IdempotencyConflictException extends RuntimeException {
+import java.util.UUID;
 
-	public IdempotencyConflictException(final String message) {
-		super(message);
+/** One wire code (IDEMPOTENCY_CONFLICT), three distinct localized messages. */
+public class IdempotencyConflictException extends ApiException {
+
+	public IdempotencyConflictException(final ErrorCode errorCode, final UUID idempotencyKey) {
+		super(errorCode, idempotencyKey);
 	}
 }

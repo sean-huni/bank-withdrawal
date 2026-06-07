@@ -19,6 +19,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.example.bank.exception.ErrorCode;
 import com.example.bank.exception.IdempotencyConflictException;
 import com.example.bank.jdbc.model.IdempotencyRecordEntity;
 import com.example.bank.jdbc.repo.IdempotencyRecordRepo;
@@ -73,16 +74,13 @@ public class IdempotencyAspect {
 
 	private Object replay(final UUID key, final String fingerprint, final Class<?> returnType) {
 		final IdempotencyRecordEntity existing = idempotencyRecordRepo.findByKey(key)
-				.orElseThrow(() -> new IdempotencyConflictException(
-						"Idempotency-Key %s could not be resolved".formatted(key)));
+				.orElseThrow(() -> new IdempotencyConflictException(ErrorCode.IDEMPOTENCY_UNRESOLVED, key));
 
 		if (!existing.getRequestFingerprint().equals(fingerprint)) {
-			throw new IdempotencyConflictException(
-					"Idempotency-Key %s was already used with a different request".formatted(key));
+			throw new IdempotencyConflictException(ErrorCode.IDEMPOTENCY_REPLAY_MISMATCH, key);
 		}
 		if (existing.getStatus() != IdempotencyStatus.COMPLETED) {
-			throw new IdempotencyConflictException(
-					"A request with Idempotency-Key %s is already in progress".formatted(key));
+			throw new IdempotencyConflictException(ErrorCode.IDEMPOTENCY_IN_PROGRESS, key);
 		}
 		log.info("Replaying idempotent response for key={}", key);
 		return deserialize(existing.getResponseBody(), returnType);

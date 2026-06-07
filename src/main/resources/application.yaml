@@ -20,6 +20,12 @@ spring:
   # API versioning via configuration properties — the deliberate contrast with feat-jpa,
   # which configures the same Spring Framework 7 native versioning programmatically
   # (ApiVersioningConfig implementing WebMvcConfigurer).
+  messages:
+    # MUST match the bundle location (i18n/messages.properties) — a mismatched
+    # basename does not fail startup; every lookup silently falls back.
+    basename: i18n/messages
+    # Unsupported Accept-Language → base (English) bundle, never the OS locale.
+    fallback-to-system-locale: false
   mvc:
     api-version:
       supported: ["1"]        # supported set declared here, not in annotations

@@ -2,7 +2,9 @@ package com.example.bank.api.advice;
 
 import java.util.List;
 
+import org.springframework.context.MessageSource;
 import org.springframework.context.MessageSourceResolvable;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -24,6 +26,8 @@ import com.example.bank.api.TraceIdProvider;
 import com.example.bank.api.dto.resp.ApiError;
 import com.example.bank.api.dto.resp.ApiResponse;
 import com.example.bank.exception.AccountNotFoundException;
+import com.example.bank.exception.ApiException;
+import com.example.bank.exception.ErrorCode;
 import com.example.bank.exception.IdempotencyConflictException;
 import com.example.bank.exception.InsufficientFundsException;
 import com.example.bank.exception.TransactionNotFoundException;
@@ -46,33 +50,34 @@ import lombok.extern.slf4j.Slf4j;
 public class GlobalExceptionHandler {
 
 	private final TraceIdProvider traceIdProvider;
+	private final MessageSource messageSource;
 
 	@ExceptionHandler(AccountNotFoundException.class)
 	@ResponseStatus(HttpStatus.NOT_FOUND)
 	public ApiResponse<Void> handleAccountNotFound(final AccountNotFoundException ex) {
 		log.warn("Account not found: {}", ex.getMessage());
-		return failure(ApiError.of("ACCOUNT_NOT_FOUND", ex.getMessage()));
+		return failure(ex);
 	}
 
 	@ExceptionHandler(TransactionNotFoundException.class)
 	@ResponseStatus(HttpStatus.NOT_FOUND)
 	public ApiResponse<Void> handleTransactionNotFound(final TransactionNotFoundException ex) {
 		log.warn("Transaction not found: {}", ex.getMessage());
-		return failure(ApiError.of("TRANSACTION_NOT_FOUND", ex.getMessage()));
+		return failure(ex);
 	}
 
 	@ExceptionHandler(InsufficientFundsException.class)
 	@ResponseStatus(HttpStatus.UNPROCESSABLE_CONTENT)
 	public ApiResponse<Void> handleInsufficientFunds(final InsufficientFundsException ex) {
 		log.warn("Insufficient funds on account {}", ex.getAccountId());
-		return failure(ApiError.of("INSUFFICIENT_FUNDS", ex.getMessage()));
+		return failure(ex);
 	}
 
 	@ExceptionHandler(IdempotencyConflictException.class)
 	@ResponseStatus(HttpStatus.CONFLICT)
 	public ApiResponse<Void> handleIdempotencyConflict(final IdempotencyConflictException ex) {
 		log.warn("Idempotency conflict: {}", ex.getMessage());
-		return failure(ApiError.of("IDEMPOTENCY_CONFLICT", ex.getMessage()));
+		return failure(ex);
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)
@@ -192,6 +197,23 @@ public class GlobalExceptionHandler {
 
 	private ApiResponse<Void> failure(final ApiError error) {
 		return ApiResponse.failure(error, traceIdProvider.currentTraceId());
+	}
+
+	/** Business exception → envelope: wire code from the enum, text from the bundle. */
+	private ApiResponse<Void> failure(final ApiException ex) {
+		return failure(errorOf(ex.getErrorCode(), ex.getArgs()));
+	}
+
+	private ApiError errorOf(final ErrorCode errorCode, final Object... args) {
+		return ApiError.of(errorCode.wireCode(), resolve(errorCode, args));
+	}
+
+	/**
+	 * THROWING overload on purpose — a missing key must never degrade to a
+	 * silent default; the catalog completeness test makes it unreachable.
+	 */
+	private String resolve(final ErrorCode errorCode, final Object... args) {
+		return messageSource.getMessage(errorCode.messageKey(), args, LocaleContextHolder.getLocale());
 	}
 
 	/**

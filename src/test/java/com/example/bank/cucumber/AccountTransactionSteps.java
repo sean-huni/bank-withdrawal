@@ -72,12 +72,18 @@ public class AccountTransactionSteps {
 	private List<HttpResult> parallelResults;
 	private CacheStats statsBeforeFetches;
 	private String sentTraceId;
+	private String acceptLanguage;
 
 	@Before
 	public void bindClient() {
 		client = RestTestClient.bindToServer()
 				.baseUrl("http://localhost:%d".formatted(port))
 				.build();
+	}
+
+	@Given("the client speaks {string}")
+	public void clientSpeaks(final String languageTag) {
+		acceptLanguage = languageTag;
 	}
 
 	@Given("an account for {string} with balance {bigdecimal}")
@@ -203,6 +209,16 @@ public class AccountTransactionSteps {
 		assertThat(lastResult.status()).isEqualTo(status);
 		assertThat(lastResult.body().at("/success").asBoolean()).isFalse();
 		assertThat(lastResult.body().at("/error/code").asString()).isEqualTo(errorCode);
+	}
+
+	@Then("the error message is {string}")
+	public void errorMessageIs(final String message) {
+		assertThat(lastResult.body().at("/error/message").asString()).isEqualTo(message);
+	}
+
+	@Then("the error message contains {string}")
+	public void errorMessageContains(final String fragment) {
+		assertThat(lastResult.body().at("/error/message").asString()).contains(fragment);
 	}
 
 	@Then("the error reports a violation on field {string}")
@@ -335,6 +351,9 @@ public class AccountTransactionSteps {
 		final var request = client.post()
 				.uri("/api/v1/accounts/{accountId}/{operation}", accountId, operation)
 				.contentType(MediaType.APPLICATION_JSON);
+		if (acceptLanguage != null) {
+			request.header("Accept-Language", acceptLanguage);
+		}
 		if (idempotencyKey != null) {
 			request.header("Idempotency-Key", idempotencyKey.toString());
 		}
@@ -362,7 +381,11 @@ public class AccountTransactionSteps {
 	}
 
 	private HttpResult get(final String uriTemplate, final Object... uriVariables) {
-		return capture(client.get().uri(uriTemplate, uriVariables));
+		final var request = client.get().uri(uriTemplate, uriVariables);
+		if (acceptLanguage != null) {
+			request.header("Accept-Language", acceptLanguage);
+		}
+		return capture(request);
 	}
 
 	private HttpResult capture(final RestTestClient.RequestHeadersSpec<?> request) {
