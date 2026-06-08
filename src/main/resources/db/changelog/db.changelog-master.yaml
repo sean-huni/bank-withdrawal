@@ -7,3 +7,5 @@ databaseChangeLog:
       file: db/changelog/changes/003-create-idempotency-records-table.sql
   - include:
       file: db/changelog/changes/004-add-card-number-to-accounts.sql
+  - include:
+      file: db/changelog/changes/005-normalize-cards.sql
