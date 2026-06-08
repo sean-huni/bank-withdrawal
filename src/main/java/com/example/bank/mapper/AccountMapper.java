@@ -12,9 +12,12 @@ import com.example.bank.jdbc.model.AccountEntity;
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING)
 public interface AccountMapper {
 
-	@Mapping(target = "accountId", source = "id")
+	@Mapping(target = "accountId", source = "account.id")
+	@Mapping(target = "holderName", source = "account.holderName")
+	@Mapping(target = "balance", source = "account.balance")
+	@Mapping(target = "currency", source = "account.currency")
 	@Mapping(target = "maskedCardNumber", source = "cardNumber", qualifiedByName = "maskCard")
-	AccountResponse toAccountResponse(AccountEntity entity);
+	AccountResponse toAccountResponse(AccountEntity account, String cardNumber);
 
 	/** Keep the last four digits, mask the rest in the conventional card grouping. */
 	@Named("maskCard")

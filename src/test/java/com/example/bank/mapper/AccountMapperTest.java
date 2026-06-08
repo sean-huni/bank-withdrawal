@@ -16,15 +16,15 @@ class AccountMapperTest {
 	private final AccountMapper mapper = Mappers.getMapper(AccountMapper.class);
 
 	@Test
-	void mapsEntityAndMasksAllButLastFour() {
-		final AccountEntity entity = new AccountEntity("Alice", new BigDecimal("1000.00"), "EUR", "4539148803436467");
+	void mapsAccountPlusCardNumberAndMasks() {
+		final AccountEntity entity = new AccountEntity("Alice", new BigDecimal("1000.00"), "EUR");
 
-		final AccountResponse response = mapper.toAccountResponse(entity);
+		final AccountResponse r = mapper.toAccountResponse(entity, "4539148803436467");
 
-		assertThat(response.holderName()).isEqualTo("Alice");
-		assertThat(response.balance()).isEqualByComparingTo("1000.00");
-		assertThat(response.currency()).isEqualTo("EUR");
-		assertThat(response.maskedCardNumber()).isEqualTo("•••• •••• •••• 6467");
+		assertThat(r.holderName()).isEqualTo("Alice");
+		assertThat(r.balance()).isEqualByComparingTo("1000.00");
+		assertThat(r.currency()).isEqualTo("EUR");
+		assertThat(r.maskedCardNumber()).isEqualTo("•••• •••• •••• 6467");
 	}
 
 	@Test
