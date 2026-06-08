@@ -72,7 +72,7 @@ class StatementQueryCountTest {
 
 	private UUID seedAccountWithTransactions(final int count) {
 		final AccountEntity account = accountRepo.save(
-				new AccountEntity("n1-probe-%d".formatted(count), new BigDecimal("1000.00"), "EUR"));
+				new AccountEntity("n1-probe-%d".formatted(count), new BigDecimal("1000.00"), "EUR", "%016d".formatted(count)));
 		for (int i = 0; i < count; i++) {
 			transactionRepo.save(TransactionEntity.create(account.getId(), TransactionType.CREDIT,
 					new BigDecimal("10.00"), new BigDecimal("1000.00"), UUID.randomUUID()));

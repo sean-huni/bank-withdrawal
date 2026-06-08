@@ -88,8 +88,15 @@ public class AccountTransactionSteps {
 
 	@Given("an account for {string} with balance {bigdecimal}")
 	public void anAccountWithBalance(final String holder, final BigDecimal balance) {
-		final AccountEntity account = accountRepo.save(new AccountEntity(holder, balance, "EUR"));
+		final AccountEntity account = accountRepo.save(
+				new AccountEntity(holder, balance, "EUR", randomCardNumber()));
 		accountsByHolder.put(holder, account.getId());
+	}
+
+	/** A unique-enough 16-digit card for accounts whose card is irrelevant to the test. */
+	private static String randomCardNumber() {
+		return "%016d".formatted(Math.floorMod(
+				UUID.randomUUID().getMostSignificantBits(), 10_000_000_000_000_000L));
 	}
 
 	@When("{string} withdraws {bigdecimal}")

@@ -45,4 +45,7 @@ public interface AccountRepo extends CrudRepository<AccountEntity, UUID> {
 			RETURNING balance
 			""")
 	Optional<BigDecimal> credit(@Param("accountId") UUID accountId, @Param("amount") BigDecimal amount);
+
+	/** Read-only card lookup — never load-and-{@code save()} the returned entity (see class javadoc). */
+	Optional<AccountEntity> findByCardNumber(String cardNumber);
 }

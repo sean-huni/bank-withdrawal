@@ -7,6 +7,7 @@ import org.springframework.data.relational.core.mapping.Table;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.AccessLevel;
@@ -30,9 +31,16 @@ public class AccountEntity extends BaseEntity {
 	@Size(min = 3, max = 3)
 	private String currency;
 
-	public AccountEntity(final String holderName, final BigDecimal balance, final String currency) {
+	@NotBlank
+	@Pattern(regexp = "\\d{16}")
+	@Column("card_number")
+	private String cardNumber;
+
+	public AccountEntity(final String holderName, final BigDecimal balance,
+			final String currency, final String cardNumber) {
 		this.holderName = holderName;
 		this.balance = balance;
 		this.currency = currency;
+		this.cardNumber = cardNumber;
 	}
 }
