@@ -57,6 +57,8 @@ public class DevTestDataLogger {
 		banner.append("Swagger UI      : %s/swagger-ui.html\n".formatted(baseUrl));
 		banner.append("OpenAPI spec    : %s/v3/api-docs\n".formatted(baseUrl));
 		banner.append("Base path       : /api/v1/accounts/{accountId}  (POST /withdrawals | POST /deposits | GET /transactions | GET /transactions/{transactionId})\n");
+		banner.append("Card lookup     : curl %s/api/v1/cards/{cardNumber}  (balance inquiry; e.g. a seeded card above)\n"
+				.formatted(baseUrl));
 		banner.append("Sortable fields : %s  (statement ?sort=)\n".formatted(String.join(", ", statementSortProperties())));
 		banner.append("Sort examples   : sort=createdAt,desc | sort=amount,asc | sort=[\"amount,asc\"] (Swagger-style, also accepted)\n");
 		banner.append("Locales         : %s  (Accept-Language header; unsupported values fall back to English)\n"
@@ -83,10 +85,10 @@ public class DevTestDataLogger {
 			banner.append("Accounts        : No accounts found — did the Liquibase seed (002-seed-accounts) run against this database?\n");
 			return;
 		}
-		banner.append("Accounts (id | holder | balance | version):\n");
+		banner.append("Accounts (id | holder | balance | card | version):\n");
 		for (final AccountEntity account : accounts) {
-			banner.append("  %s | %s | %s %s | v%s\n".formatted(account.getId(), account.getHolderName(),
-					account.getBalance(), account.getCurrency(), account.getVersion()));
+			banner.append("  %s | %s | %s %s | card=%s | v%s\n".formatted(account.getId(), account.getHolderName(),
+					account.getBalance(), account.getCurrency(), account.getCardNumber(), account.getVersion()));
 			appendTransactions(banner, account.getId());
 		}
 	}

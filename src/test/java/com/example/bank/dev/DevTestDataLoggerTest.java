@@ -92,7 +92,10 @@ class DevTestDataLoggerTest {
 				.contains(bob.getId().toString())
 				.contains("Bob").contains("250.5000")
 				.contains(debit.getId().toString())
-				.contains("DEBIT").contains("950.0000");
+				.contains("DEBIT").contains("950.0000")
+				// card numbers surface on each account line, plus a card-lookup curl example
+				.contains("card=4539148803436467")
+				.contains("Card lookup");
 	}
 
 	@Test
