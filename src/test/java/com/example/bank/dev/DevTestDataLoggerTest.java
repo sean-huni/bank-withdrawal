@@ -59,8 +59,8 @@ class DevTestDataLoggerTest {
 
 	@Test
 	void bannerListsSwaggerUrlSortablePropertiesAccountsAndTransactions() {
-		final AccountEntity alice = account("Alice", "1000.0000");
-		final AccountEntity bob = account("Bob", "250.5000");
+		final AccountEntity alice = account("Alice", "1000.0000", "4539148803436467");
+		final AccountEntity bob = account("Bob", "250.5000", "6011000990139424");
 		when(accountRepo.findAll()).thenReturn(List.of(alice, bob));
 
 		final TransactionEntity debit = TransactionEntity.create(
@@ -99,7 +99,7 @@ class DevTestDataLoggerTest {
 				// ATM frontend section — cards derived from live accounts, defaults from Environment
 				.contains("ATM cards")
 				.contains("Alice -> 4539148803436467")
-				.contains("Bob -> 4539148803436467")
+				.contains("Bob -> 6011000990139424")
 				.contains("ATM PIN").contains("1234")
 				.contains("ATM frontend").contains("http://localhost:5173")
 				.contains("ATM repo").contains("github.com/sean-huni/fe-bank-withdrawal")
@@ -115,8 +115,8 @@ class DevTestDataLoggerTest {
 		assertThat(loggedText()).contains("No accounts found");
 	}
 
-	private AccountEntity account(final String holder, final String balance) {
-		final AccountEntity account = new AccountEntity(holder, new BigDecimal(balance), "EUR", "4539148803436467");
+	private AccountEntity account(final String holder, final String balance, final String cardNumber) {
+		final AccountEntity account = new AccountEntity(holder, new BigDecimal(balance), "EUR", cardNumber);
 		account.assignIdIfMissing();
 		return account;
 	}
