@@ -27,6 +27,7 @@ import com.example.bank.api.dto.resp.ApiError;
 import com.example.bank.api.dto.resp.ApiResponse;
 import com.example.bank.exception.AccountNotFoundException;
 import com.example.bank.exception.ApiException;
+import com.example.bank.exception.CardNotFoundException;
 import com.example.bank.exception.ErrorCode;
 import com.example.bank.exception.IdempotencyConflictException;
 import com.example.bank.exception.InsufficientFundsException;
@@ -64,6 +65,14 @@ public class GlobalExceptionHandler {
 	@ResponseStatus(HttpStatus.NOT_FOUND)
 	public ApiResponse<Void> handleTransactionNotFound(final TransactionNotFoundException ex) {
 		log.warn("Transaction not found: {}", ex.getMessage());
+		return failure(ex);
+	}
+
+	@ExceptionHandler(CardNotFoundException.class)
+	@ResponseStatus(HttpStatus.NOT_FOUND)
+	public ApiResponse<Void> handleCardNotFound(final CardNotFoundException ex) {
+		// the card number is never logged — only the generic code/message
+		log.warn("Card lookup failed: card not recognised");
 		return failure(ex);
 	}
 
