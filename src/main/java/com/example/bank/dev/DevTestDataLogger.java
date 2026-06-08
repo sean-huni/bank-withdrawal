@@ -3,7 +3,9 @@ package com.example.bank.dev;
 import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -21,8 +23,10 @@ import com.example.bank.api.AccountTransactionController;
 import com.example.bank.api.validation.AllowedSortProperties;
 import com.example.bank.config.SupportedLanguages;
 import com.example.bank.jdbc.model.AccountEntity;
+import com.example.bank.jdbc.model.CardEntity;
 import com.example.bank.jdbc.model.TransactionEntity;
 import com.example.bank.jdbc.repo.AccountRepo;
+import com.example.bank.jdbc.repo.CardRepo;
 import com.example.bank.jdbc.repo.TransactionRepo;
 
 import lombok.RequiredArgsConstructor;
@@ -45,6 +49,7 @@ public class DevTestDataLogger {
 	private static final int RECENT_TRANSACTIONS = 5;
 
 	private final AccountRepo accountRepo;
+	private final CardRepo cardRepo;
 	private final TransactionRepo transactionRepo;
 	private final Environment environment;
 
@@ -57,7 +62,9 @@ public class DevTestDataLogger {
 		banner.append("Swagger UI      : %s/swagger-ui.html\n".formatted(baseUrl));
 		banner.append("OpenAPI spec    : %s/v3/api-docs\n".formatted(baseUrl));
 		banner.append("Base path       : /api/v1/accounts/{accountId}  (POST /withdrawals | POST /deposits | GET /transactions | GET /transactions/{transactionId})\n");
-		banner.append("Card lookup     : curl %s/api/v1/cards/{cardNumber}  (balance inquiry; e.g. a seeded card above)\n"
+		banner.append("Card greeting   : curl %s/api/v1/cards/{cardNumber}  (holder + masked number; NO balance)\n"
+				.formatted(baseUrl));
+		banner.append("PIN verify      : curl -X POST %s/api/v1/cards/{cardNumber}/pin -H 'Content-Type: application/json' -d '{\"pin\":\"1234\"}'  (200 with balance; 401 PIN_INVALID)\n"
 				.formatted(baseUrl));
 		banner.append("Sortable fields : %s  (statement ?sort=)\n".formatted(String.join(", ", statementSortProperties())));
 		banner.append("Sort examples   : sort=createdAt,desc | sort=amount,asc | sort=[\"amount,asc\"] (Swagger-style, also accepted)\n");
@@ -86,13 +93,16 @@ public class DevTestDataLogger {
 	 * convention via {@link Environment} so a clean clone still prints sane defaults.
 	 */
 	private void appendAtmFrontend(final StringBuilder banner) {
-		final List<AccountEntity> accounts = new ArrayList<>();
-		accountRepo.findAll().forEach(accounts::add);
-		final String cards = accounts.stream()
-				.map(account -> "%s -> %s".formatted(account.getHolderName(), account.getCardNumber()))
+		final Map<UUID, String> holderById = new HashMap<>();
+		accountRepo.findAll().forEach(account -> holderById.put(account.getId(), account.getHolderName()));
+		final List<CardEntity> cardEntities = new ArrayList<>();
+		cardRepo.findAll().forEach(cardEntities::add);
+		final String cards = cardEntities.stream()
+				.map(card -> "%s -> %s".formatted(
+						holderById.getOrDefault(card.getAccountId(), "?"), card.getCardNumber()))
 				.collect(Collectors.joining(" | "));
 		banner.append("ATM cards     : %s  (demo cards — drive the ATM React app)\n".formatted(cards));
-		banner.append("ATM PIN       : 1234  (demo; the React PIN keypad is cosmetic — any 4 digits work)\n");
+		banner.append("ATM PIN       : 1234  (demo; BCrypt-verified server-side against the seeded hash)\n");
 		banner.append("ATM frontend  : %s\n".formatted(
 				environment.getProperty("FRONTEND_URL", "http://localhost:5173")));
 		banner.append("ATM repo      : %s\n".formatted(
@@ -107,10 +117,10 @@ public class DevTestDataLogger {
 			banner.append("Accounts        : No accounts found — did the Liquibase seed (002-seed-accounts) run against this database?\n");
 			return;
 		}
-		banner.append("Accounts (id | holder | balance | card | version):\n");
+		banner.append("Accounts (id | holder | balance | version):\n");
 		for (final AccountEntity account : accounts) {
-			banner.append("  %s | %s | %s %s | card=%s | v%s\n".formatted(account.getId(), account.getHolderName(),
-					account.getBalance(), account.getCurrency(), account.getCardNumber(), account.getVersion()));
+			banner.append("  %s | %s | %s %s | v%s\n".formatted(account.getId(), account.getHolderName(),
+					account.getBalance(), account.getCurrency(), account.getVersion()));
 			appendTransactions(banner, account.getId());
 		}
 	}

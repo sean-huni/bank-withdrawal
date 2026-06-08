@@ -20,8 +20,10 @@ import org.springframework.mock.env.MockEnvironment;
 
 import com.example.bank.domain.TransactionType;
 import com.example.bank.jdbc.model.AccountEntity;
+import com.example.bank.jdbc.model.CardEntity;
 import com.example.bank.jdbc.model.TransactionEntity;
 import com.example.bank.jdbc.repo.AccountRepo;
+import com.example.bank.jdbc.repo.CardRepo;
 import com.example.bank.jdbc.repo.TransactionRepo;
 
 import ch.qos.logback.classic.Logger;
@@ -36,6 +38,7 @@ import ch.qos.logback.core.read.ListAppender;
 class DevTestDataLoggerTest {
 
 	private final AccountRepo accountRepo = mock(AccountRepo.class);
+	private final CardRepo cardRepo = mock(CardRepo.class);
 	private final TransactionRepo transactionRepo = mock(TransactionRepo.class);
 	private final MockEnvironment environment = new MockEnvironment()
 			.withProperty("local.server.port", "8080");
@@ -44,7 +47,7 @@ class DevTestDataLoggerTest {
 	private final Logger logger = (Logger) LoggerFactory.getLogger(DevTestDataLogger.class);
 
 	private final DevTestDataLogger devTestDataLogger =
-			new DevTestDataLogger(accountRepo, transactionRepo, environment);
+			new DevTestDataLogger(accountRepo, cardRepo, transactionRepo, environment);
 
 	@BeforeEach
 	void attachAppender() {
@@ -59,9 +62,12 @@ class DevTestDataLoggerTest {
 
 	@Test
 	void bannerListsSwaggerUrlSortablePropertiesAccountsAndTransactions() {
-		final AccountEntity alice = account("Alice", "1000.0000", "4539148803436467");
-		final AccountEntity bob = account("Bob", "250.5000", "6011000990139424");
+		final AccountEntity alice = account("Alice", "1000.0000");
+		final AccountEntity bob = account("Bob", "250.5000");
 		when(accountRepo.findAll()).thenReturn(List.of(alice, bob));
+		when(cardRepo.findAll()).thenReturn(List.of(
+				card(alice.getId(), "4539148803436467"),
+				card(bob.getId(), "6011000990139424")));
 
 		final TransactionEntity debit = TransactionEntity.create(
 				alice.getId(), TransactionType.DEBIT,
@@ -93,10 +99,10 @@ class DevTestDataLoggerTest {
 				.contains("Bob").contains("250.5000")
 				.contains(debit.getId().toString())
 				.contains("DEBIT").contains("950.0000")
-				// card numbers surface on each account line, plus a card-lookup curl example
-				.contains("card=4539148803436467")
-				.contains("Card lookup")
-				// ATM frontend section — cards derived from live accounts, defaults from Environment
+				// greeting + PIN-verify curl examples in the banner header
+				.contains("Card greeting")
+				.contains("PIN verify")
+				// ATM frontend section — cards now sourced from CardRepo, joined to holders
 				.contains("ATM cards")
 				.contains("Alice -> 4539148803436467")
 				.contains("Bob -> 6011000990139424")
@@ -115,10 +121,16 @@ class DevTestDataLoggerTest {
 		assertThat(loggedText()).contains("No accounts found");
 	}
 
-	private AccountEntity account(final String holder, final String balance, final String cardNumber) {
+	private AccountEntity account(final String holder, final String balance) {
 		final AccountEntity account = new AccountEntity(holder, new BigDecimal(balance), "EUR");
 		account.assignIdIfMissing();
 		return account;
+	}
+
+	private CardEntity card(final UUID accountId, final String cardNumber) {
+		final CardEntity card = new CardEntity(accountId, cardNumber, "$2a$10$irrelevant-for-banner");
+		card.assignIdIfMissing();
+		return card;
 	}
 
 	private String loggedText() {
