@@ -9,6 +9,7 @@ package com.example.bank.exception;
 public enum ErrorCode {
 
 	ACCOUNT_NOT_FOUND("error.account.not-found"),
+	CARD_NOT_FOUND("error.card.not-found"),
 	TRANSACTION_NOT_FOUND("error.transaction.not-found"),
 	INSUFFICIENT_FUNDS("error.funds.insufficient"),
 	IDEMPOTENCY_UNRESOLVED("IDEMPOTENCY_CONFLICT", "error.idempotency.unresolved"),
