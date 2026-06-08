@@ -23,11 +23,14 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.caffeine.CaffeineCache;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 import com.example.bank.config.CachingConfig;
 import com.example.bank.jdbc.model.AccountEntity;
+import com.example.bank.jdbc.model.CardEntity;
 import com.example.bank.jdbc.repo.AccountRepo;
+import com.example.bank.jdbc.repo.CardRepo;
 import com.github.benmanes.caffeine.cache.stats.CacheStats;
 
 import io.cucumber.java.Before;
@@ -55,6 +58,12 @@ public class AccountTransactionSteps {
 
 	@Autowired
 	private AccountRepo accountRepo;
+
+	@Autowired
+	private CardRepo cardRepo;
+
+	@Autowired
+	private PasswordEncoder passwordEncoder;
 
 	@Autowired
 	private ObjectMapper objectMapper;
@@ -92,7 +101,45 @@ public class AccountTransactionSteps {
 		accountsByHolder.put(holder, account.getId());
 	}
 
-	// Card steps live in Task 11's rewritten section below (seed account+card, hit new endpoints).
+	@Given("an account for {string} with balance {bigdecimal} and card {string} pin {string}")
+	public void accountWithCardAndPin(final String holder, final BigDecimal balance,
+			final String card, final String pin) {
+		final AccountEntity account = accountRepo.save(new AccountEntity(holder, balance, "EUR"));
+		accountsByHolder.put(holder, account.getId());
+		cardRepo.save(new CardEntity(account.getId(), card, passwordEncoder.encode(pin)));
+	}
+
+	@When("the card {string} is looked up")
+	public void cardLookedUp(final String card) {
+		lastResult = get("/api/v1/cards/{cardNumber}", card);
+	}
+
+	@When("the card {string} is authenticated with pin {string}")
+	public void cardAuthenticated(final String card, final String pin) {
+		final var request = client.post().uri("/api/v1/cards/{cardNumber}/pin", card)
+				.contentType(MediaType.APPLICATION_JSON);
+		if (acceptLanguage != null) {
+			request.header("Accept-Language", acceptLanguage);
+		}
+		lastResult = capture(request.body("""
+				{"pin": "%s"}""".formatted(pin)));
+	}
+
+	@Then("the greeting shows holder {string} and masked card {string} with no balance")
+	public void greetingShows(final String holder, final String masked) {
+		assertThat(lastResult.status()).isEqualTo(200);
+		assertThat(lastResult.body().at("/data/holderName").asString()).isEqualTo(holder);
+		assertThat(lastResult.body().at("/data/maskedCardNumber").asString()).isEqualTo(masked);
+		assertThat(lastResult.body().at("/data/balance").isMissingNode()).isTrue();
+	}
+
+	@Then("the authenticated snapshot shows balance {bigdecimal} for holder {string}")
+	public void authSnapshot(final BigDecimal balance, final String holder) {
+		assertThat(lastResult.status()).isEqualTo(200);
+		assertThat(lastResult.body().at("/data/holderName").asString()).isEqualTo(holder);
+		assertThat(lastResult.body().at("/data/balance").decimalValue()).isEqualByComparingTo(balance);
+		assertThat(lastResult.body().at("/data/accountId").asString()).isNotBlank();
+	}
 
 	@When("{string} withdraws {bigdecimal}")
 	public void withdraws(final String holder, final BigDecimal amount) {
