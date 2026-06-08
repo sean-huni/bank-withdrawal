@@ -115,6 +115,7 @@ Flow: **Repository (`jdbc/model`) → Service (`model` ↔ `domain` ↔ `dto` vi
 | Deposit (credit) | `POST /api/v1/accounts/{accountId}/deposits` | `201` | `404` · `400` · `409` |
 | Statement | `GET /api/v1/accounts/{accountId}/transactions` | `200` (paged) | `404` |
 | Single transaction | `GET /api/v1/accounts/{accountId}/transactions/{transactionId}` | `200` | `404` |
+| Card lookup / balance inquiry | `GET /api/v1/cards/{cardNumber}` | `200` | `404` CARD_NOT_FOUND (unknown card) · `400` VALIDATION_FAILED (malformed, violation on cardNumber) |
 
 ```shell
 curl -X POST localhost:8080/api/v1/accounts/<uuid>/withdrawals \
