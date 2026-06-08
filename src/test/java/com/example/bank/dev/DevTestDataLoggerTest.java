@@ -116,7 +116,7 @@ class DevTestDataLoggerTest {
 	}
 
 	private AccountEntity account(final String holder, final String balance, final String cardNumber) {
-		final AccountEntity account = new AccountEntity(holder, new BigDecimal(balance), "EUR", cardNumber);
+		final AccountEntity account = new AccountEntity(holder, new BigDecimal(balance), "EUR");
 		account.assignIdIfMissing();
 		return account;
 	}

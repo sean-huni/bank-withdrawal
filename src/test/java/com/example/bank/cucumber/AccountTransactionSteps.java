@@ -12,7 +12,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -75,9 +74,6 @@ public class AccountTransactionSteps {
 	private String sentTraceId;
 	private String acceptLanguage;
 
-	/** Monotonic 16-digit card source — collision-free against the unique index (no flaky random). */
-	private static final AtomicLong CARD_SEQ = new AtomicLong(1_000_000_000_000_000L);
-
 	@Before
 	public void bindClient() {
 		client = RestTestClient.bindToServer()
@@ -92,35 +88,11 @@ public class AccountTransactionSteps {
 
 	@Given("an account for {string} with balance {bigdecimal}")
 	public void anAccountWithBalance(final String holder, final BigDecimal balance) {
-		final AccountEntity account = accountRepo.save(
-				new AccountEntity(holder, balance, "EUR", nextCardNumber()));
+		final AccountEntity account = accountRepo.save(new AccountEntity(holder, balance, "EUR"));
 		accountsByHolder.put(holder, account.getId());
 	}
 
-	/** A deterministic, monotonic 16-digit card for accounts whose card is irrelevant to the test. */
-	private static String nextCardNumber() {
-		return Long.toString(CARD_SEQ.getAndIncrement());
-	}
-
-	@Given("an account for {string} with balance {bigdecimal} and card {string}")
-	public void anAccountWithBalanceAndCard(final String holder, final BigDecimal balance, final String card) {
-		final AccountEntity account = accountRepo.save(new AccountEntity(holder, balance, "EUR", card));
-		accountsByHolder.put(holder, account.getId());
-	}
-
-	@When("the card {string} is looked up")
-	public void theCardIsLookedUp(final String cardNumber) {
-		lastResult = get("/api/v1/cards/{cardNumber}", cardNumber);
-	}
-
-	@Then("the card lookup succeeds with holder {string} balance {bigdecimal} and masked card {string}")
-	public void theCardLookupSucceeds(final String holder, final BigDecimal balance, final String masked) {
-		assertThat(lastResult.status()).isEqualTo(200);
-		assertThat(lastResult.body().at("/data/holderName").asString()).isEqualTo(holder);
-		assertThat(lastResult.body().at("/data/balance").decimalValue()).isEqualByComparingTo(balance);
-		assertThat(lastResult.body().at("/data/maskedCardNumber").asString()).isEqualTo(masked);
-		assertThat(lastResult.body().at("/data/accountId").asString()).isNotBlank();
-	}
+	// Card steps live in Task 11's rewritten section below (seed account+card, hit new endpoints).
 
 	@When("{string} withdraws {bigdecimal}")
 	public void withdraws(final String holder, final BigDecimal amount) {
