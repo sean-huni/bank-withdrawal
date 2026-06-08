@@ -57,6 +57,15 @@ management:
     metrics:
       export:
         enabled: false
+  metrics:
+    distribution:
+      # Emit percentile-histogram buckets so Grafana can compute p95/p99 — Micrometer timers
+      # otherwise ship only the +Inf bucket and histogram_quantile() returns NaN. Targeted to the
+      # HTTP server timer and the @Observed business timers (keyed by meter name).
+      percentiles-histogram:
+        http.server.requests: true
+        card.pin.verify: true
+        card.summary: true
   tracing:
     export:
       otlp:
