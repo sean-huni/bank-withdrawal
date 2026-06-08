@@ -31,6 +31,7 @@ import com.example.bank.exception.CardNotFoundException;
 import com.example.bank.exception.ErrorCode;
 import com.example.bank.exception.IdempotencyConflictException;
 import com.example.bank.exception.InsufficientFundsException;
+import com.example.bank.exception.PinInvalidException;
 import com.example.bank.exception.TransactionNotFoundException;
 
 import jakarta.validation.ConstraintViolation;
@@ -73,6 +74,13 @@ public class GlobalExceptionHandler {
 	public ApiResponse<Void> handleCardNotFound(final CardNotFoundException ex) {
 		// the card number is never logged — only the generic code/message
 		log.warn("Card lookup failed: card not recognised");
+		return failure(ex);
+	}
+
+	@ExceptionHandler(PinInvalidException.class)
+	@ResponseStatus(HttpStatus.UNAUTHORIZED)
+	public ApiResponse<Void> handlePinInvalid(final PinInvalidException ex) {
+		log.warn("PIN verification failed");   // no card/PIN in the log
 		return failure(ex);
 	}
 
