@@ -13,14 +13,12 @@ import io.micrometer.observation.annotation.Observed;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Card lookup / balance inquiry. {@code @Validated} enforces the 16-digit format
  * at this boundary (defense-in-depth behind the controller's path-var constraint);
  * a well-formed but unknown card is the only business outcome → 404.
  */
-@Slf4j
 @Service
 @Validated
 @RequiredArgsConstructor

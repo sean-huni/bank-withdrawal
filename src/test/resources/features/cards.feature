@@ -8,7 +8,7 @@ Feature: Card lookup (balance inquiry)
     Then the card lookup succeeds with holder "zara" balance 500.00 and masked card "•••• •••• •••• 1234"
 
   Scenario: An unknown but well-formed card is a 404
-    When the card "4000999988887777" is looked up
+    When the card "4000000000000002" is looked up
     Then the operation fails with status 404 and error code "CARD_NOT_FOUND"
 
   Scenario: A malformed card number is a 400 validation error
@@ -18,6 +18,6 @@ Feature: Card lookup (balance inquiry)
 
   Scenario: The card-not-found message resolves in Shona
     Given the client speaks "sn"
-    When the card "4000999988887777" is looked up
+    When the card "4000000000000002" is looked up
     Then the operation fails with status 404 and error code "CARD_NOT_FOUND"
     And the error message is "Kadhi harizivikanwi"

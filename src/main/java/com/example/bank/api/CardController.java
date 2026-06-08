@@ -15,7 +15,6 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Pattern;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Card lookup / balance inquiry — the ATM "insert card" step. A 16-digit card
@@ -24,7 +23,6 @@ import lombok.extern.slf4j.Slf4j;
  * calls. A malformed card is a 400 (path-var format constraint); a well-formed
  * unknown card is a 404 ({@code CARD_NOT_FOUND}). The full PAN is never returned.
  */
-@Slf4j
 @Tag(name = "Cards", description = "Card lookup and balance inquiry")
 @RestController
 @RequestMapping(value = "/api/{api-version}/cards")

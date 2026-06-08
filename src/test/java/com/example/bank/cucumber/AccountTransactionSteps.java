@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -74,6 +75,9 @@ public class AccountTransactionSteps {
 	private String sentTraceId;
 	private String acceptLanguage;
 
+	/** Monotonic 16-digit card source — collision-free against the unique index (no flaky random). */
+	private static final AtomicLong CARD_SEQ = new AtomicLong(1_000_000_000_000_000L);
+
 	@Before
 	public void bindClient() {
 		client = RestTestClient.bindToServer()
@@ -89,14 +93,13 @@ public class AccountTransactionSteps {
 	@Given("an account for {string} with balance {bigdecimal}")
 	public void anAccountWithBalance(final String holder, final BigDecimal balance) {
 		final AccountEntity account = accountRepo.save(
-				new AccountEntity(holder, balance, "EUR", randomCardNumber()));
+				new AccountEntity(holder, balance, "EUR", nextCardNumber()));
 		accountsByHolder.put(holder, account.getId());
 	}
 
-	/** A unique-enough 16-digit card for accounts whose card is irrelevant to the test. */
-	private static String randomCardNumber() {
-		return "%016d".formatted(Math.floorMod(
-				UUID.randomUUID().getMostSignificantBits(), 10_000_000_000_000_000L));
+	/** A deterministic, monotonic 16-digit card for accounts whose card is irrelevant to the test. */
+	private static String nextCardNumber() {
+		return Long.toString(CARD_SEQ.getAndIncrement());
 	}
 
 	@Given("an account for {string} with balance {bigdecimal} and card {string}")
