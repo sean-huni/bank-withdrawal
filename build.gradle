@@ -21,6 +21,8 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	// BCrypt PIN hashing/verification — crypto module only, NOT the full security filter chain
+	implementation 'org.springframework.security:spring-security-crypto'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	// AOP (idempotency + @Observed timing aspects) and distributed tracing (traceId in envelope/logs).
 	// Boot 4 dropped spring-boot-starter-aop — spring-aop ships with core, only the weaver is needed.
