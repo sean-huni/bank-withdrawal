@@ -95,7 +95,15 @@ class DevTestDataLoggerTest {
 				.contains("DEBIT").contains("950.0000")
 				// card numbers surface on each account line, plus a card-lookup curl example
 				.contains("card=4539148803436467")
-				.contains("Card lookup");
+				.contains("Card lookup")
+				// ATM frontend section — cards derived from live accounts, defaults from Environment
+				.contains("ATM cards")
+				.contains("Alice -> 4539148803436467")
+				.contains("Bob -> 4539148803436467")
+				.contains("ATM PIN").contains("1234")
+				.contains("ATM frontend").contains("http://localhost:5173")
+				.contains("ATM repo").contains("github.com/sean-huni/fe-bank-withdrawal")
+				.contains("ATM launch").contains("npm install").contains("npm run dev");
 	}
 
 	@Test

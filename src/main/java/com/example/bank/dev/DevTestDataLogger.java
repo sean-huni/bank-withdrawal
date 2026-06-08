@@ -73,9 +73,31 @@ public class DevTestDataLogger {
 				.formatted(environment.getProperty("PROMETHEUS_URL", "http://localhost:9090")));
 		banner.append("Idempotency-Key : %s  (fresh UUID — required header on every POST; reuse replays, new key per new operation)\n"
 				.formatted(UUID.randomUUID()));
+		appendAtmFrontend(banner);
 		appendAccounts(banner);
 		banner.append("=================================================================================");
 		log.info("{}", banner);
+	}
+
+	/**
+	 * Everything a tester needs to drive the ATM React app from one console block.
+	 * The card list is derived from the live accounts (never hardcoded) so it stays
+	 * true when the Liquibase seed changes; the URLs honor the {@code ${VAR:default}}
+	 * convention via {@link Environment} so a clean clone still prints sane defaults.
+	 */
+	private void appendAtmFrontend(final StringBuilder banner) {
+		final List<AccountEntity> accounts = new ArrayList<>();
+		accountRepo.findAll().forEach(accounts::add);
+		final String cards = accounts.stream()
+				.map(account -> "%s -> %s".formatted(account.getHolderName(), account.getCardNumber()))
+				.collect(Collectors.joining(" | "));
+		banner.append("ATM cards     : %s  (demo cards — drive the ATM React app)\n".formatted(cards));
+		banner.append("ATM PIN       : 1234  (demo; the React PIN keypad is cosmetic — any 4 digits work)\n");
+		banner.append("ATM frontend  : %s\n".formatted(
+				environment.getProperty("FRONTEND_URL", "http://localhost:5173")));
+		banner.append("ATM repo      : %s\n".formatted(
+				environment.getProperty("FRONTEND_REPO_URL", "https://github.com/sean-huni/fe-bank-withdrawal")));
+		banner.append("ATM launch    : cd fe-bank-withdrawal && cp .env.example .env && npm install && npm run dev  (or: npm run setup)\n");
 	}
 
 	private void appendAccounts(final StringBuilder banner) {
