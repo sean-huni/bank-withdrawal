@@ -1,6 +1,7 @@
 package com.example.bank.mapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.math.BigDecimal;
 
@@ -24,5 +25,17 @@ class AccountMapperTest {
 		assertThat(response.balance()).isEqualByComparingTo("1000.00");
 		assertThat(response.currency()).isEqualTo("EUR");
 		assertThat(response.maskedCardNumber()).isEqualTo("•••• •••• •••• 6467");
+	}
+
+	@Test
+	void maskCardReturnsFullyMaskedFallbackForNullWithoutThrowing() {
+		assertThatCode(() -> AccountMapper.maskCard(null)).doesNotThrowAnyException();
+		assertThat(AccountMapper.maskCard(null)).isEqualTo("•••• •••• •••• ••••");
+	}
+
+	@Test
+	void maskCardReturnsFullyMaskedFallbackForShortInputWithoutThrowing() {
+		assertThatCode(() -> AccountMapper.maskCard("12")).doesNotThrowAnyException();
+		assertThat(AccountMapper.maskCard("12")).isEqualTo("•••• •••• •••• ••••");
 	}
 }

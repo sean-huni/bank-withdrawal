@@ -19,6 +19,9 @@ public interface AccountMapper {
 	/** Keep the last four digits, mask the rest in the conventional card grouping. */
 	@Named("maskCard")
 	static String maskCard(final String cardNumber) {
+		if (cardNumber == null || cardNumber.length() < 4) {
+			return "•••• •••• •••• ••••";
+		}
 		final String last4 = cardNumber.substring(cardNumber.length() - 4);
 		return "•••• •••• •••• %s".formatted(last4);
 	}
