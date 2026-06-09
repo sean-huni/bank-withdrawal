@@ -1,4 +1,6 @@
-package com.example.bank.event;
+package com.example.bank.event.publisher;
+
+import com.example.bank.event.WithdrawalEvent;
 
 /**
  * Outbound port for withdrawal events — keeps the service layer independent of

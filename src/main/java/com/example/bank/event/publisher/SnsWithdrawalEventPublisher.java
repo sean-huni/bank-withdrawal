@@ -1,15 +1,13 @@
-package com.example.bank.event;
-
-import org.springframework.stereotype.Component;
+package com.example.bank.event.publisher;
 
 import com.example.bank.config.AwsProperties;
-
-import tools.jackson.databind.ObjectMapper;
-
+import com.example.bank.event.WithdrawalEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
 import software.amazon.awssdk.services.sns.SnsClient;
 import software.amazon.awssdk.services.sns.model.PublishRequest;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * SNS adapter for the {@link WithdrawalEventPublisher} port. Failures are
