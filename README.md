@@ -285,11 +285,11 @@ listener** guarantees no event is ever emitted for a rolled-back withdrawal.
 The fixed implementation is this repository (the Spring Data JDBC variant, merged from `feat-jdbc`; `feat-jpa` carries the Spring Data JPA variant of
 the persistence baseline). Entry points, in reading order:
 
-1. [`AccountTransactionController`](src/main/java/com/example/bank/api/AccountTransactionController.java) — the lean HTTP boundary
+1. [`AccountTransactionController`](src/main/java/com/example/bank/ctl/AccountTransactionController.java) — the lean HTTP boundary
 2. [`AccountTransactionService`](src/main/java/com/example/bank/service/AccountTransactionService.java) — the business flow (compare directly with the original snippet)
-3. [`AccountRepo`](src/main/java/com/example/bank/jdbc/repo/AccountRepo.java) — the atomic guarded `RETURNING` debit
+3. [`AccountRepo`](src/main/java/com/example/bank/data/repo/AccountRepo.java) — the atomic guarded `RETURNING` debit
 4. [`IdempotencyAspect`](src/main/java/com/example/bank/idempotency/IdempotencyAspect.java) — retry safety
-5. [`WithdrawalEventListener`](src/main/java/com/example/bank/event/WithdrawalEventListener.java) / [`SnsWithdrawalEventPublisher`](src/main/java/com/example/bank/event/SnsWithdrawalEventPublisher.java) — the fixed notification path
+5. [`WithdrawalEventListener`](src/main/java/com/example/bank/event/listener/WithdrawalEventListener.java) / [`SnsWithdrawalEventPublisher`](src/main/java/com/example/bank/event/publisher/SnsWithdrawalEventPublisher.java) — the fixed notification path
 6. [`GlobalExceptionHandler`](src/main/java/com/example/bank/api/advice/GlobalExceptionHandler.java) — centralized error semantics
 
 ## 4. Library usage notes

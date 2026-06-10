@@ -54,6 +54,9 @@
     </changeSet>
 
     <changeSet id="005-drop-account-card-number" author="sean">
+        <preConditions onFail="MARK_RAN">
+            <indexExists indexName="uk_accounts_card_number"/>
+        </preConditions>
         <dropIndex tableName="accounts" indexName="uk_accounts_card_number"/>
         <dropColumn tableName="accounts" columnName="card_number"/>
         <rollback>
