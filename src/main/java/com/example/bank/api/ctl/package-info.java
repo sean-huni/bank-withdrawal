@@ -4,4 +4,4 @@
  * envelope. Boundary plumbing (advice/filter/validation) lives in
  * {@code com.example.bank.api}.
  */
-package com.example.bank.ctl;
+package com.example.bank.api.ctl;

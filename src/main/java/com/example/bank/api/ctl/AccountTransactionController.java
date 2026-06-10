@@ -1,7 +1,19 @@
-package com.example.bank.ctl;
+package com.example.bank.api.ctl;
 
-import java.util.UUID;
-
+import com.example.bank.api.validation.AllowedSortProperties;
+import com.example.bank.config.TraceIdProvider;
+import com.example.bank.dto.req.DepositRequest;
+import com.example.bank.dto.req.WithdrawalRequest;
+import com.example.bank.dto.resp.ApiResponse;
+import com.example.bank.dto.resp.TransactionResponse;
+import com.example.bank.service.AccountTransactionService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -16,21 +28,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.bank.dto.resp.ApiResponse;
-import com.example.bank.api.validation.AllowedSortProperties;
-import com.example.bank.config.TraceIdProvider;
-import com.example.bank.dto.req.DepositRequest;
-import com.example.bank.dto.resp.TransactionResponse;
-import com.example.bank.dto.req.WithdrawalRequest;
-import com.example.bank.service.AccountTransactionService;
-
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.enums.ParameterIn;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.util.UUID;
 
 /**
  * Lean HTTP boundary: validate, delegate, wrap in the envelope — nothing else.

@@ -1,5 +1,17 @@
-package com.example.bank.ctl;
+package com.example.bank.api.ctl;
 
+import com.example.bank.config.TraceIdProvider;
+import com.example.bank.dto.req.AtmSessionRequest;
+import com.example.bank.dto.resp.ApiResponse;
+import com.example.bank.dto.resp.AtmSessionResponse;
+import com.example.bank.service.AtmSessionService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -9,20 +21,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-
-import com.example.bank.config.TraceIdProvider;
-import com.example.bank.dto.req.AtmSessionRequest;
-import com.example.bank.dto.resp.ApiResponse;
-import com.example.bank.dto.resp.AtmSessionResponse;
-import com.example.bank.service.AtmSessionService;
-
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
-import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 
 /**
  * ATM session bootstrap — the enrolment entry point of the passkey-enabled ATM.
