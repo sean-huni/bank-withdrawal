@@ -21,8 +21,12 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
-	// BCrypt PIN hashing/verification — crypto module only, NOT the full security filter chain
-	implementation 'org.springframework.security:spring-security-crypto'
+	// Full Spring Security filter chain — the passkey-enabled ATM (session-based, HttpSession cookie).
+	// Brings spring-security-crypto transitively, so the BCrypt PasswordEncoder stays available.
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	// Spring Security 7 native WebAuthn (passkeys) — REAL signature verification via webauthn4j.
+	// BOM-managed by the security starter; no explicit version (gradle.properties policy honored).
+	implementation 'org.springframework.security:spring-security-webauthn'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	// AOP (idempotency + @Observed timing aspects) and distributed tracing (traceId in envelope/logs).
 	// Boot 4 dropped spring-boot-starter-aop — spring-aop ships with core, only the weaver is needed.
@@ -67,6 +71,8 @@ dependencies {
 	developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	// Security test support (RequestPostProcessors, mock SecurityContext helpers)
+	testImplementation 'org.springframework.security:spring-security-test'
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 	testImplementation platform("org.testcontainers:testcontainers-bom:${testcontainersVersion}")
 	testImplementation 'org.testcontainers:junit-jupiter'

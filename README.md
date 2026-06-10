@@ -117,6 +117,8 @@ Flow: **Repository (`jdbc/model`) → Service (`model` ↔ `domain` ↔ `dto` vi
 | Single transaction | `GET /api/v1/accounts/{accountId}/transactions/{transactionId}` | `200` | `404` |
 | Card greeting (no balance) | `GET /api/v1/cards/{cardNumber}` | `200` | `404` CARD_NOT_FOUND (unknown card) · `400` VALIDATION_FAILED (malformed, violation on cardNumber) |
 | Verify PIN (returns balance) | `POST /api/v1/cards/{cardNumber}/pin` | `200` | `401` PIN_INVALID (wrong PIN) · `404` CARD_NOT_FOUND · `400` VALIDATION_FAILED (malformed pin/card) |
+| ATM session bootstrap (card+PIN) | `POST /api/v1/atm/session` | `200` (session cookie) | `401` PIN_INVALID · `404` CARD_NOT_FOUND · `400` VALIDATION_FAILED — see **Passkey-enabled ATM** below |
+| ATM session end (kiosk exit) | `POST /api/v1/atm/session/end` | `204` (idempotent) | — (always `204`, even with no session) |
 
 ```shell
 curl -X POST localhost:8080/api/v1/accounts/<uuid>/withdrawals \
@@ -167,6 +169,95 @@ Validation messages come from the same catalog (constraint annotations carry bra
 e.g. `{error.amount.positive}`); each field violation also exposes its machine-readable
 `code` (the bundle key) and the `rejectedValue`. A catalog completeness test fails the
 build if any referenced key is missing from any bundle.
+
+## Passkey-enabled ATM (Spring Security 7 native WebAuthn)
+
+A creative twist on the assessment: a **passkey replaces card-number entry on return visits**.
+The passkey is the customer's *identity* on the kiosk; the bank **PIN remains the transaction
+authorization secret**. Signature verification is performed by **Spring Security's built-in
+WebAuthn DSL** (`http.webAuthn(...)`, backed by webauthn4j) — real attestation/assertion
+verification, not a hand-rolled verifier.
+
+Session-based by design (HttpSession cookie, no bearer tokens in browser storage) — the correct
+model for a **shared ATM kiosk**: identity lives in a server session the kiosk clears between
+customers, never in `localStorage` on a public terminal.
+
+### Flow
+
+```
+First visit (enrol):                         Return visit (skip the card):
+  insert card + enter PIN                       tap passkey  (POST /webauthn/authenticate/options
+   → POST /api/v1/atm/session                                 → POST /login/webauthn — username-less,
+   → authenticated kiosk session                                discoverable credential)
+   → "Enable passkey on this ATM"               → authenticated kiosk session
+   → POST /webauthn/register/options            → enter PIN to AUTHORIZE the withdrawal
+   → POST /webauthn/register  (attestation)        (PIN stays the transaction secret)
+```
+
+Card + PIN bootstrap is what makes `POST /webauthn/register/options` reachable: registration
+requires an authenticated principal (the account UUID; the card number is never the principal,
+never logged). The bootstrap also links that principal to a WebAuthn user entity whose
+`displayName` is the masked card, so the authenticator shows a human-friendly label.
+
+### Endpoints
+
+| Step | Method + Path | Auth | Notes |
+|---|---|---|---|
+| ATM session bootstrap | `POST /api/v1/atm/session` | card + PIN | Body `{cardNumber, pin}` → `200` + session cookie; `{accountId, maskedCardNumber, passkeyEnrolled}`. `401` wrong PIN, `404` unknown card (existing wire shapes). CSRF-exempt (under `/api/**`), but **rotates the session id** on success (session-fixation defence, OWASP A07) and **primes the `XSRF-TOKEN` cookie** (via `CsrfCookieFilter`) so the next ceremony POST succeeds first try. |
+| ATM session end (kiosk exit) | `POST /api/v1/atm/session/end` | — | Invalidates the HttpSession + clears the SecurityContext. **Idempotent: always `204`**, even with no session (no error leak). The kiosk calls this between customers. |
+| Registration options | `POST /webauthn/register/options` | session required | Mints a creation challenge for the authenticated customer. Without a session the framework filter refuses with `400` (never issues a challenge — user-enumeration-safe). |
+| Registration | `POST /webauthn/register` | session required | Verifies attestation, stores the credential. CSRF-protected (echo `XSRF-TOKEN` cookie as `X-XSRF-TOKEN`). |
+| Authentication options | `POST /webauthn/authenticate/options` | public | Username-less discoverable-credential challenge for a returning customer. |
+| Login | `POST /login/webauthn` | public | Verifies the assertion signature and establishes the session. |
+
+### Configuration (`atm.passkey.*`, env-overridable)
+
+| Property | Env var | Default | Meaning |
+|---|---|---|---|
+| `rp-id` | `PASSKEY_RP_ID` | `localhost` | Registrable domain credentials are scoped to (production: the bank's apex domain). |
+| `rp-name` | `PASSKEY_RP_NAME` | `Bank Withdrawal ATM` | Human-readable relying-party name shown by the authenticator. |
+| `origins` | `PASSKEY_ORIGINS` | `http://localhost:5173` | Exact browser origins allowed to run the ceremony. |
+
+Validated at startup (`@Validated`, braced i18n keys) — a blank value fails fast. Precedence:
+yml default < `.env` < real environment variable.
+
+### Security & kiosk notes
+
+- **HTTPS in production.** WebAuthn requires a [secure context]; browsers grant `localhost` the
+  one non-HTTPS exception for local dev. A deployed ATM must serve every origin over HTTPS, and
+  `rp-id` must be the production apex domain.
+- **Registration is origin-bound.** A credential registered against one origin cannot be used
+  from another — keep `origins` exact and minimal.
+- **Persistence.** Credentials and user entities live in Postgres (`user_entities`,
+  `user_credentials` — Liquibase changeset `006`) via Spring's JDBC WebAuthn repositories, so an
+  enrolled passkey survives a restart.
+- **CSRF.** The existing JSON API (`/api/**`) and the pre-authentication ceremony endpoints stay
+  CSRF-exempt; the post-authentication registration ceremony is CSRF-protected with a readable
+  (`httpOnly=false`) cookie token the SPA echoes back. A `CsrfCookieFilter` (the official Spring
+  Security SPA pattern, `addFilterAfter(BasicAuthenticationFilter.class)`) primes the `XSRF-TOKEN`
+  cookie on **every** response — including the CSRF-exempt bootstrap — so the SPA's first
+  CSRF-protected ceremony POST succeeds on the first try (no fetch-then-403-then-retry dance).
+- **Session fixation.** The bootstrap rotates the session id (`changeSessionId()`) on successful
+  card+PIN, so a pre-authentication session cannot survive privilege elevation (OWASP A07 / ASVS
+  V3.2.1). The kiosk-exit endpoint (`POST /api/v1/atm/session/end`) invalidates the session and
+  clears the SecurityContext between customers; it is idempotent (always `204`).
+- **Kiosk session timeout.** `server.servlet.session.timeout` defaults to **2 minutes**
+  (`ATM_SESSION_TIMEOUT`, env-overridable) — a shared terminal drops an abandoned authenticated
+  session fast. Precedence: yml default < `.env` < real environment variable.
+- **`[!CONVENTION-OVERRIDE]`** `/api/**`, actuator and OpenAPI are `permitAll` to keep this
+  assessment app's existing public API contract byte-identical (all 50 prior tests unchanged). A
+  production bank would require authentication there — leaving them public would be
+  [OWASP A01:2021 Broken Access Control] and is acceptable *only* because this is an assessment.
+
+> **Testing limitation.** The full register/login ceremony (attestation + assertion with a real
+> authenticator) is not e2e-testable on the JVM without a virtual authenticator (e.g. a headless
+> Chrome WebAuthn virtual authenticator under Playwright). The Cucumber scenarios verify the
+> *wiring* — endpoints exist, are protected correctly, and emit well-formed challenge JSON; the
+> signature verification itself is the framework's (webauthn4j) and is covered by Spring
+> Security's own test suite.
+
+[secure context]: https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts
+[OWASP A01:2021 Broken Access Control]: https://owasp.org/Top10/A01_2021-Broken_Access_Control/
 
 ## Observability — OpenTelemetry + Grafana LGTM
 

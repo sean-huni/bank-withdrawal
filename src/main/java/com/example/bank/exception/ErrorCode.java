@@ -25,6 +25,8 @@ public enum ErrorCode {
 	CONCURRENT_MODIFICATION("error.concurrency.conflict"),
 	DATA_INTEGRITY_VIOLATION("error.data.integrity"),
 	RESOURCE_NOT_FOUND("error.resource.not-found"),
+	UNAUTHORIZED("error.auth.unauthorized"),
+	FORBIDDEN("error.auth.forbidden"),
 	INTERNAL_ERROR("error.internal");
 
 	private final String wireCode;

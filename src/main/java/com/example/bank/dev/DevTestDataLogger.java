@@ -108,6 +108,29 @@ public class DevTestDataLogger {
 		banner.append("ATM repo      : %s\n".formatted(
 				environment.getProperty("FRONTEND_REPO_URL", "https://github.com/sean-huni/fe-bank-withdrawal")));
 		banner.append("ATM launch    : cd fe-bank-withdrawal && cp .env.example .env && npm install && npm run dev  (or: npm run setup)\n");
+		appendPasskey(banner);
+	}
+
+	/**
+	 * Passkey-enabled ATM cheat sheet. rpId/origins are read via {@link Environment}
+	 * with the same {@code ${VAR:default}} keys the security config binds, so the
+	 * banner stays true to the live relying-party config (single read point).
+	 */
+	private void appendPasskey(final StringBuilder banner) {
+		banner.append("Passkey rpId  : %s   origins: %s   (atm.passkey.* — registration binds a credential to its origin)\n"
+				.formatted(environment.getProperty("PASSKEY_RP_ID", "localhost"),
+						environment.getProperty("PASSKEY_ORIGINS", "http://localhost:5173")));
+		banner.append("ATM session   : curl -X POST %s/api/v1/atm/session -H 'Content-Type: application/json' -d '{\"cardNumber\":\"4539148803436467\",\"pin\":\"1234\"}'  (card+PIN -> authenticated session cookie; rotates session id + primes XSRF-TOKEN)\n"
+				.formatted(baseUrl()));
+		banner.append("ATM end       : curl -X POST %s/api/v1/atm/session/end  (kiosk exit -> 204; invalidates session + clears context; idempotent)\n"
+				.formatted(baseUrl()));
+		banner.append("Passkey enrol : POST /webauthn/register/options then /webauthn/register  (needs the session above)\n");
+		banner.append("Passkey login : POST /webauthn/authenticate/options then /login/webauthn  (return visit — username-less, public)\n");
+	}
+
+	/** Base URL derived the same way {@link #logTestData()} does (single read point, no field state). */
+	private String baseUrl() {
+		return "http://localhost:%s".formatted(environment.getProperty("local.server.port", "8080"));
 	}
 
 	private void appendAccounts(final StringBuilder banner) {
