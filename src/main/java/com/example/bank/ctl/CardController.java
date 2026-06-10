@@ -1,4 +1,4 @@
-package com.example.bank.api;
+package com.example.bank.ctl;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.bank.api.dto.req.PinVerifyRequest;
+import com.example.bank.config.TraceIdProvider;
 import com.example.bank.api.dto.resp.AccountResponse;
 import com.example.bank.api.dto.resp.ApiResponse;
 import com.example.bank.api.dto.resp.CardSummaryResponse;

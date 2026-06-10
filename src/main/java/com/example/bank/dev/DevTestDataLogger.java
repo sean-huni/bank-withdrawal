@@ -19,7 +19,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
-import com.example.bank.api.AccountTransactionController;
+import com.example.bank.ctl.AccountTransactionController;
 import com.example.bank.api.validation.AllowedSortProperties;
 import com.example.bank.config.SupportedLanguages;
 import com.example.bank.data.model.AccountEntity;

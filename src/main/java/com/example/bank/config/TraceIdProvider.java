@@ -1,4 +1,4 @@
-package com.example.bank.api;
+package com.example.bank.config;
 
 import org.springframework.stereotype.Component;
 
