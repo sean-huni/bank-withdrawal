@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 
-import com.example.bank.api.dto.resp.TransactionResponse;
+import com.example.bank.dto.resp.TransactionResponse;
 import com.example.bank.config.CachingConfig;
 import com.example.bank.domain.AccountTransaction;
 import com.example.bank.domain.TransactionType;

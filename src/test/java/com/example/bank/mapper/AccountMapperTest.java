@@ -8,7 +8,7 @@ import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
 
-import com.example.bank.api.dto.resp.AccountResponse;
+import com.example.bank.dto.resp.AccountResponse;
 import com.example.bank.data.model.AccountEntity;
 
 class AccountMapperTest {

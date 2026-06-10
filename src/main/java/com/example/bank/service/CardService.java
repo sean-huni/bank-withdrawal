@@ -5,8 +5,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 
-import com.example.bank.api.dto.resp.AccountResponse;
-import com.example.bank.api.dto.resp.CardSummaryResponse;
+import com.example.bank.dto.resp.AccountResponse;
+import com.example.bank.dto.resp.CardSummaryResponse;
 import com.example.bank.exception.AccountNotFoundException;
 import com.example.bank.exception.CardNotFoundException;
 import com.example.bank.exception.PinInvalidException;

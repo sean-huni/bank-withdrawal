@@ -9,11 +9,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.bank.api.dto.req.PinVerifyRequest;
+import com.example.bank.dto.req.PinVerifyRequest;
 import com.example.bank.config.TraceIdProvider;
-import com.example.bank.api.dto.resp.AccountResponse;
-import com.example.bank.api.dto.resp.ApiResponse;
-import com.example.bank.api.dto.resp.CardSummaryResponse;
+import com.example.bank.dto.resp.AccountResponse;
+import com.example.bank.dto.resp.ApiResponse;
+import com.example.bank.dto.resp.CardSummaryResponse;
 import com.example.bank.service.CardService;
 
 import io.swagger.v3.oas.annotations.Operation;

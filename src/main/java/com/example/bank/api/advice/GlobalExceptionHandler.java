@@ -23,8 +23,8 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.example.bank.config.TraceIdProvider;
-import com.example.bank.api.dto.resp.ApiError;
-import com.example.bank.api.dto.resp.ApiResponse;
+import com.example.bank.dto.resp.ApiError;
+import com.example.bank.dto.resp.ApiResponse;
 import com.example.bank.exception.AccountNotFoundException;
 import com.example.bank.exception.ApiException;
 import com.example.bank.exception.CardNotFoundException;

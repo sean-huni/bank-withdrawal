@@ -6,7 +6,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingConstants;
 
-import com.example.bank.api.dto.resp.TransactionResponse;
+import com.example.bank.dto.resp.TransactionResponse;
 import com.example.bank.domain.AccountTransaction;
 import com.example.bank.event.WithdrawalEvent;
 import com.example.bank.data.model.TransactionEntity;

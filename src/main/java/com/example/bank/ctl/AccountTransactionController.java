@@ -16,12 +16,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.bank.api.dto.resp.ApiResponse;
+import com.example.bank.dto.resp.ApiResponse;
 import com.example.bank.api.validation.AllowedSortProperties;
 import com.example.bank.config.TraceIdProvider;
-import com.example.bank.api.dto.req.DepositRequest;
-import com.example.bank.api.dto.resp.TransactionResponse;
-import com.example.bank.api.dto.req.WithdrawalRequest;
+import com.example.bank.dto.req.DepositRequest;
+import com.example.bank.dto.resp.TransactionResponse;
+import com.example.bank.dto.req.WithdrawalRequest;
 import com.example.bank.service.AccountTransactionService;
 
 import io.swagger.v3.oas.annotations.Operation;

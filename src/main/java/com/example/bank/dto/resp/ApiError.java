@@ -1,4 +1,4 @@
-package com.example.bank.api.dto.resp;
+package com.example.bank.dto.resp;
 
 import java.util.List;
 
