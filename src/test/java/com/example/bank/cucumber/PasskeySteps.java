@@ -63,6 +63,7 @@ public class PasskeySteps {
 	private RestTestClient client;
 	private final Map<String, String> cookies = new LinkedHashMap<>();
 	private HttpResult lastResult;
+	private String preBootstrapSessionId;
 
 	@Before
 	public void bindClient() {
@@ -85,7 +86,12 @@ public class PasskeySteps {
 
 	@When("passkey registration options are requested without a session")
 	public void registrationOptionsNoSession() {
-		// fresh client/cookies — no ATM session established
+		// No ATM session, but prime the CSRF token via a public call first (CsrfCookieFilter
+		// writes XSRF-TOKEN on every response) so the request clears the CsrfFilter and
+		// reaches the WebAuthn options filter — which is what refuses an ANONYMOUS caller
+		// with the user-enumeration-safe 400. This isolates the security property under
+		// test (no challenge to the unauthenticated) from a plain CSRF 403.
+		exchangePost("/webauthn/authenticate/options", null, false);
 		lastResult = exchangePost("/webauthn/register/options", null, true);
 	}
 
@@ -99,7 +105,9 @@ public class PasskeySteps {
 		assertThat(lastResult.status()).isEqualTo(200);
 		assertThat(lastResult.body().at("/success").asBoolean()).isTrue();
 		assertThat(lastResult.body().at("/data/accountId").asString()).isNotBlank();
-		assertThat(lastResult.body().at("/data/maskedCardNumber").asString()).contains("2222");
+		// masked card: bullets + the real last-4 only (no full PAN on the wire)
+		assertThat(lastResult.body().at("/data/maskedCardNumber").asString())
+				.contains("•").matches(".*\\d{4}$");
 		assertThat(lastResult.body().at("/data/passkeyEnrolled").asBoolean()).isFalse();
 		// a session cookie must have been issued for the follow-up ceremony (servlet default: JSESSIONID)
 		assertThat(cookies).containsKey("JSESSIONID");
@@ -144,21 +152,89 @@ public class PasskeySteps {
 		assertThat(lastResult.body().at("/rpId").asString()).isEqualTo("localhost");
 	}
 
+	// --- Fix 1: session-fixation (id rotation on privilege elevation) ---
+
+	@When("a pre-auth ceremony call has established a kiosk session")
+	public void preAuthSessionEstablished() {
+		// /webauthn/authenticate/options is public and creates a JSESSIONID — exactly
+		// the kind of pre-authentication session that must NOT survive bootstrap.
+		exchangePost("/webauthn/authenticate/options", null, false);
+		preBootstrapSessionId = cookies.get("JSESSIONID");
+		assertThat(preBootstrapSessionId)
+				.as("a pre-bootstrap JSESSIONID must exist to prove rotation")
+				.isNotBlank();
+	}
+
+	@Then("the kiosk session id is rotated by the bootstrap")
+	public void sessionIdRotated() {
+		assertThat(lastResult.status()).isEqualTo(200);
+		final String postBootstrapSessionId = cookies.get("JSESSIONID");
+		assertThat(postBootstrapSessionId)
+				.as("bootstrap must issue a NEW JSESSIONID (session-fixation defence)")
+				.isNotBlank()
+				.isNotEqualTo(preBootstrapSessionId);
+	}
+
+	// --- Fix 2: CSRF token priming on the exempt bootstrap response ---
+
+	@Then("the bootstrap response carries an XSRF-TOKEN cookie")
+	public void bootstrapCarriesXsrfCookie() {
+		assertThat(lastResult.status()).isEqualTo(200);
+		assertThat(cookies)
+				.as("CsrfCookieFilter must prime the XSRF-TOKEN cookie on the exempt bootstrap")
+				.containsKey("XSRF-TOKEN");
+		assertThat(cookies.get("XSRF-TOKEN")).isNotBlank();
+	}
+
+	@Then("passkey registration options succeed on the first try with the primed CSRF token")
+	public void registrationOptionsSucceedFirstTry() {
+		// csrf=true echoes the XSRF-TOKEN cookie primed by the bootstrap response; with
+		// the retry-dance removed this MUST pass first try (200), proving Fix 2.
+		final HttpResult result = exchangePost("/webauthn/register/options", null, true);
+		assertThat(result.status())
+				.as("register/options must succeed FIRST try (no 403 retry), was %s", result.status())
+				.isEqualTo(200);
+		assertThat(result.body().at("/challenge").asString()).isNotBlank();
+	}
+
+	// --- Fix 3: end-session endpoint (kiosk exit) ---
+
+	@When("the ATM session is ended")
+	public void endSession() {
+		lastResult = exchangePost("/api/v1/atm/session/end", null, false);
+	}
+
+	@When("the ATM session is ended with no session")
+	public void endSessionNoSession() {
+		// fresh client/cookies — never bootstrapped
+		lastResult = exchangePost("/api/v1/atm/session/end", null, false);
+	}
+
+	@Then("the session-end returns 204")
+	public void sessionEndReturns204() {
+		assertThat(lastResult.status()).isEqualTo(204);
+	}
+
+	@Then("passkey registration options are refused again after the session ended")
+	public void registrationRefusedAfterEnd() {
+		// session is dead → the framework filter refuses with 400 and issues NO challenge
+		final HttpResult result = exchangePost("/webauthn/register/options", null, true);
+		assertThat(result.status())
+				.as("after end, register/options must be refused (400), was %s", result.status())
+				.isEqualTo(400);
+		assertThat(result.body().at("/challenge").isMissingNode()).isTrue();
+	}
+
 	/**
-	 * One POST capturing cookies. When {@code csrf} is true and no XSRF-TOKEN cookie
-	 * is held yet, the first POST to a CSRF-protected endpoint is rejected 403 but
-	 * the CookieCsrfTokenRepository writes the XSRF-TOKEN cookie on that response
-	 * (the unsafe-method path generates + saves the deferred token). The request is
-	 * then retried with that token echoed in the X-XSRF-TOKEN header — exactly the
-	 * fetch-then-submit dance a real SPA performs. Endpoints under /api/** and the
-	 * pre-auth ceremony endpoints are CSRF-exempt, so {@code csrf} is false for those.
+	 * One POST capturing cookies. When {@code csrf} is true the held XSRF-TOKEN cookie
+	 * (primed on every prior response by {@code CsrfCookieFilter} — including the
+	 * CSRF-exempt bootstrap) is echoed back in the X-XSRF-TOKEN header. There is NO
+	 * retry-on-403: the token is already in hand from the bootstrap response, so a
+	 * CSRF-protected ceremony POST must succeed on the FIRST try. Endpoints under
+	 * /api/** and the pre-auth ceremony endpoints are CSRF-exempt.
 	 */
 	private HttpResult exchangePost(final String uri, final String body, final boolean csrf) {
-		final HttpResult first = doPost(uri, body, csrf ? cookies.get("XSRF-TOKEN") : null);
-		if (csrf && first.status() == 403 && cookies.containsKey("XSRF-TOKEN")) {
-			return doPost(uri, body, cookies.get("XSRF-TOKEN"));
-		}
-		return first;
+		return doPost(uri, body, csrf ? cookies.get("XSRF-TOKEN") : null);
 	}
 
 	private HttpResult doPost(final String uri, final String body, final String csrfToken) {

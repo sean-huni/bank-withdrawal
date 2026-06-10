@@ -26,3 +26,28 @@ Feature: Passkey-enabled ATM (Spring Security 7 native WebAuthn)
   Scenario: The username-less authentication ceremony is public and returns a challenge
     When passkey authentication options are requested without a session
     Then a well-formed passkey challenge is returned
+
+  Scenario: Bootstrap rotates the session id (session-fixation defence, OWASP A07)
+    Given a passkey-test account for "iris" with balance 700.00 and card "4000222200004444" pin "1234"
+    And a pre-auth ceremony call has established a kiosk session
+    When an ATM session is bootstrapped with card "4000222200004444" and pin "1234"
+    Then the ATM session is established for that account with passkey not yet enrolled
+    And the kiosk session id is rotated by the bootstrap
+
+  Scenario: Bootstrap primes the CSRF token so registration succeeds on the first try
+    Given a passkey-test account for "milo" with balance 800.00 and card "4000222200005555" pin "1234"
+    When an ATM session is bootstrapped with card "4000222200005555" and pin "1234"
+    Then the bootstrap response carries an XSRF-TOKEN cookie
+    And passkey registration options succeed on the first try with the primed CSRF token
+
+  Scenario: Ending the kiosk session tears down the authenticated session
+    Given a passkey-test account for "otto" with balance 900.00 and card "4000222200006666" pin "1234"
+    When an ATM session is bootstrapped with card "4000222200006666" and pin "1234"
+    Then the ATM session is established for that account with passkey not yet enrolled
+    When the ATM session is ended
+    Then the session-end returns 204
+    And passkey registration options are refused again after the session ended
+
+  Scenario: Ending the kiosk session with no session is idempotent (204, no error leak)
+    When the ATM session is ended with no session
+    Then the session-end returns 204
