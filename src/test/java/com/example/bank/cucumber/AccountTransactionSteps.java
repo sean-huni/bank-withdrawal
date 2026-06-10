@@ -27,10 +27,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 import com.example.bank.config.CachingConfig;
-import com.example.bank.jdbc.model.AccountEntity;
-import com.example.bank.jdbc.model.CardEntity;
-import com.example.bank.jdbc.repo.AccountRepo;
-import com.example.bank.jdbc.repo.CardRepo;
+import com.example.bank.data.model.AccountEntity;
+import com.example.bank.data.model.CardEntity;
+import com.example.bank.data.repo.AccountRepo;
+import com.example.bank.data.repo.CardRepo;
 import com.github.benmanes.caffeine.cache.stats.CacheStats;
 
 import io.cucumber.java.Before;

@@ -1,4 +1,4 @@
-package com.example.bank.jdbc.repo;
+package com.example.bank.data.repo;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -8,7 +8,7 @@ import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
 
-import com.example.bank.jdbc.model.AccountEntity;
+import com.example.bank.data.model.AccountEntity;
 
 /**
  * Accounts are mutated EXCLUSIVELY via the guarded atomic UPDATEs below, which

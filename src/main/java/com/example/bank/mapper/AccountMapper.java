@@ -6,7 +6,7 @@ import org.mapstruct.MappingConstants;
 import org.mapstruct.Named;
 
 import com.example.bank.api.dto.resp.AccountResponse;
-import com.example.bank.jdbc.model.AccountEntity;
+import com.example.bank.data.model.AccountEntity;
 
 /** Persistence → controller-boundary dto for account snapshots; masks the PAN to last-4. */
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING)

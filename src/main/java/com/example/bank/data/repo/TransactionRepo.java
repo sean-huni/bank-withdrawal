@@ -1,4 +1,4 @@
-package com.example.bank.jdbc.repo;
+package com.example.bank.data.repo;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -8,7 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.PagingAndSortingRepository;
 
-import com.example.bank.jdbc.model.TransactionEntity;
+import com.example.bank.data.model.TransactionEntity;
 
 public interface TransactionRepo
 		extends CrudRepository<TransactionEntity, UUID>, PagingAndSortingRepository<TransactionEntity, UUID> {

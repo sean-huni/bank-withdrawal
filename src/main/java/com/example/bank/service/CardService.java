@@ -10,9 +10,9 @@ import com.example.bank.api.dto.resp.CardSummaryResponse;
 import com.example.bank.exception.AccountNotFoundException;
 import com.example.bank.exception.CardNotFoundException;
 import com.example.bank.exception.PinInvalidException;
-import com.example.bank.jdbc.model.CardEntity;
-import com.example.bank.jdbc.repo.AccountRepo;
-import com.example.bank.jdbc.repo.CardRepo;
+import com.example.bank.data.model.CardEntity;
+import com.example.bank.data.repo.AccountRepo;
+import com.example.bank.data.repo.CardRepo;
 import com.example.bank.mapper.AccountMapper;
 
 import io.micrometer.observation.annotation.Observed;

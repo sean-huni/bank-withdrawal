@@ -19,12 +19,12 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.mock.env.MockEnvironment;
 
 import com.example.bank.domain.TransactionType;
-import com.example.bank.jdbc.model.AccountEntity;
-import com.example.bank.jdbc.model.CardEntity;
-import com.example.bank.jdbc.model.TransactionEntity;
-import com.example.bank.jdbc.repo.AccountRepo;
-import com.example.bank.jdbc.repo.CardRepo;
-import com.example.bank.jdbc.repo.TransactionRepo;
+import com.example.bank.data.model.AccountEntity;
+import com.example.bank.data.model.CardEntity;
+import com.example.bank.data.model.TransactionEntity;
+import com.example.bank.data.repo.AccountRepo;
+import com.example.bank.data.repo.CardRepo;
+import com.example.bank.data.repo.TransactionRepo;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;

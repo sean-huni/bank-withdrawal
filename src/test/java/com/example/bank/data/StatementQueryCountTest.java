@@ -1,4 +1,4 @@
-package com.example.bank.jdbc;
+package com.example.bank.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -18,10 +18,10 @@ import org.springframework.data.domain.PageRequest;
 
 import com.example.bank.TestcontainersConfiguration;
 import com.example.bank.domain.TransactionType;
-import com.example.bank.jdbc.model.AccountEntity;
-import com.example.bank.jdbc.model.TransactionEntity;
-import com.example.bank.jdbc.repo.AccountRepo;
-import com.example.bank.jdbc.repo.TransactionRepo;
+import com.example.bank.data.model.AccountEntity;
+import com.example.bank.data.model.TransactionEntity;
+import com.example.bank.data.repo.AccountRepo;
+import com.example.bank.data.repo.TransactionRepo;
 import com.example.bank.service.AccountTransactionService;
 
 import net.ttddyy.dsproxy.QueryCountHolder;

@@ -22,12 +22,12 @@ import org.springframework.stereotype.Component;
 import com.example.bank.api.AccountTransactionController;
 import com.example.bank.api.validation.AllowedSortProperties;
 import com.example.bank.config.SupportedLanguages;
-import com.example.bank.jdbc.model.AccountEntity;
-import com.example.bank.jdbc.model.CardEntity;
-import com.example.bank.jdbc.model.TransactionEntity;
-import com.example.bank.jdbc.repo.AccountRepo;
-import com.example.bank.jdbc.repo.CardRepo;
-import com.example.bank.jdbc.repo.TransactionRepo;
+import com.example.bank.data.model.AccountEntity;
+import com.example.bank.data.model.CardEntity;
+import com.example.bank.data.model.TransactionEntity;
+import com.example.bank.data.repo.AccountRepo;
+import com.example.bank.data.repo.CardRepo;
+import com.example.bank.data.repo.TransactionRepo;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
