@@ -50,6 +50,17 @@ app:
     sns:
       withdrawal-topic-arn: ${WITHDRAWAL_TOPIC_ARN:arn:aws:sns:us-east-1:000000000000:bank-withdrawal-events}
 
+# WebAuthn relying party for the passkey-enabled ATM (atm.passkey.*). Defaults target local
+# dev (localhost + the Vite dev server). In production rp-id is the bank's apex domain and every
+# origin is HTTPS — registration binds a credential to its origin, and the browser only allows
+# ceremonies whose origin is in this list (localhost is the one non-HTTPS exception browsers
+# permit). Overridable via .env / environment.
+atm:
+  passkey:
+    rp-id: ${PASSKEY_RP_ID:localhost}
+    rp-name: ${PASSKEY_RP_NAME:Bank Withdrawal ATM}
+    origins: ${PASSKEY_ORIGINS:http://localhost:5173}
+
 management:
   # OTLP export is opt-in via the dev profile (application-dev.yml) — disabled here so
   # tests and non-dev runs never dial a collector that isn't there.
