@@ -21,7 +21,7 @@ sdk env                      # activate them for this shell (or enable sdkman_au
 ./gradlew bootRun            # spring-boot-docker-compose starts Postgres + LocalStack automatically
 ```
 
-`compose.yaml` provisions `postgres:18-alpine3.23` and LocalStack (SNS only); `localstack/init-sns.sh` creates the
+`compose.yml` provisions `postgres:18-alpine3.23` and LocalStack (SNS only); `localstack/init-sns.sh` creates the
 `bank-withdrawal-events` topic on startup.
 
 ### `.env` setup
@@ -135,7 +135,7 @@ curl -X POST localhost:8080/api/v1/accounts/<uuid>/withdrawals \
    so a canonical-URI pointer would only invite a redundant follow-up read.
 3. **The account id belongs in the path, not the body** — the URI identifies the resource acted upon;
    the body carries only the command payload.
-4. **First-class API versioning** (Spring Framework 7): API versioning is configured purely in `application.yaml`
+4. **First-class API versioning** (Spring Framework 7): API versioning is configured purely in `application.yml`
    via `spring.mvc.api-version.*` (path-segment at index 1, supported set `["1"]`). Version validation only
    applies to requests matching versioned mappings, so springdoc and actuator need no exclusions (verified
    empirically; Boot 4.0.6 has no `ignored-paths` property). The sibling `feat-jpa` branch demonstrates the
@@ -170,7 +170,7 @@ build if any referenced key is missing from any bundle.
 
 ## Observability — OpenTelemetry + Grafana LGTM
 
-`compose.yaml` includes `grafana/otel-lgtm` (all-in-one: Grafana + embedded OTLP collector + Prometheus/Mimir,
+`compose.yml` includes `grafana/otel-lgtm` (all-in-one: Grafana + embedded OTLP collector + Prometheus/Mimir,
 Tempo, Loki). The app exports **metrics, traces and logs** via OTLP — but only under the **dev profile**:
 
 ```shell
@@ -181,7 +181,7 @@ SPRING_PROFILES_ACTIVE=dev ./gradlew bootRun   # Grafana at http://localhost:300
 Both UIs are also linked from the dev startup banner (override via `GRAFANA_URL` /
 `PROMETHEUS_URL` in `.env`).
 
-- `application-dev.yaml` carries all Grafana/Prometheus-facing config (OTLP endpoints on :4318, 100% trace
+- `application-dev.yml` carries all Grafana/Prometheus-facing config (OTLP endpoints on :4318, 100% trace
   sampling, 10s metric step); the default profile disables OTLP export so tests/CI never dial a collector.
 - Logs flow through the `OpenTelemetryAppender` (`logback-spring.xml`), installed by
   `OpenTelemetryAppenderInitializer`.

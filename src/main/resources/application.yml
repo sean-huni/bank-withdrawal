@@ -41,7 +41,7 @@ spring:
 
 app:
   aws:
-    # Defaults target the LocalStack container from compose.yaml; every value is
+    # Defaults target the LocalStack container from compose.yml; every value is
     # overridable via .env / environment without touching tracked files.
     region: ${AWS_REGION:us-east-1}
     endpoint: ${AWS_ENDPOINT:http://localhost:4566}
@@ -51,7 +51,7 @@ app:
       withdrawal-topic-arn: ${WITHDRAWAL_TOPIC_ARN:arn:aws:sns:us-east-1:000000000000:bank-withdrawal-events}
 
 management:
-  # OTLP export is opt-in via the dev profile (application-dev.yaml) — disabled here so
+  # OTLP export is opt-in via the dev profile (application-dev.yml) — disabled here so
   # tests and non-dev runs never dial a collector that isn't there.
   otlp:
     metrics:

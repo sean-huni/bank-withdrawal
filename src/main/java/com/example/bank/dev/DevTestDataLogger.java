@@ -73,7 +73,7 @@ public class DevTestDataLogger {
 		// last tag = the newest non-default locale — stays true when TAGS grows
 		banner.append("Locale example  : curl -H 'Accept-Language: %s' %s/api/v1/accounts/{accountId}/transactions\n"
 				.formatted(SupportedLanguages.TAGS.getLast(), baseUrl));
-		// observability UIs from compose.yaml (grafana/otel-lgtm); .env can override the URLs
+		// observability UIs from compose.yml (grafana/otel-lgtm); .env can override the URLs
 		banner.append("Grafana         : %s  (LGTM all-in-one — dashboards + Explore for metrics/traces/logs)\n"
 				.formatted(environment.getProperty("GRAFANA_URL", "http://localhost:3000")));
 		banner.append("Prometheus      : %s  (raw metrics UI, embedded in the LGTM container)\n"
