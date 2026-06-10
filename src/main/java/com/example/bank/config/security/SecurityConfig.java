@@ -7,6 +7,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
@@ -93,6 +94,12 @@ public class SecurityConfig {
 						.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
 						.csrfTokenRequestHandler(csrfHandler)
 						.ignoringRequestMatchers("/api/**", "/webauthn/authenticate/options", "/login/webauthn"))
+				// Prime the XSRF-TOKEN cookie on EVERY response (the Spring Security SPA
+				// pattern). CsrfFilter always populates the deferred-token attribute — even
+				// on the CSRF-exempt bootstrap — so this filter renders it and writes the
+				// cookie, letting the FE's first /webauthn/register/options POST succeed on
+				// the FIRST try (no fetch-then-403-then-retry dance).
+				.addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
 				.authorizeHttpRequests(auth -> auth
 						// [!CONVENTION-OVERRIDE] The existing JSON API, actuator, OpenAPI/Swagger
 						// and the error dispatch are permitAll. This assessment app deliberately
