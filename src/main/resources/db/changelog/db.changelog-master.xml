@@ -10,5 +10,6 @@
     <include file="db/changelog/changes/003-create-idempotency-records-table.xml"/>
     <include file="db/changelog/changes/004-add-card-number-to-accounts.xml"/>
     <include file="db/changelog/changes/005-normalize-cards.xml"/>
+    <include file="db/changelog/changes/006-create-webauthn-tables.xml"/>
 
 </databaseChangeLog>
