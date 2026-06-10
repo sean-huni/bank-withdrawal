@@ -118,6 +118,7 @@ Flow: **Repository (`jdbc/model`) → Service (`model` ↔ `domain` ↔ `dto` vi
 | Card greeting (no balance) | `GET /api/v1/cards/{cardNumber}` | `200` | `404` CARD_NOT_FOUND (unknown card) · `400` VALIDATION_FAILED (malformed, violation on cardNumber) |
 | Verify PIN (returns balance) | `POST /api/v1/cards/{cardNumber}/pin` | `200` | `401` PIN_INVALID (wrong PIN) · `404` CARD_NOT_FOUND · `400` VALIDATION_FAILED (malformed pin/card) |
 | ATM session bootstrap (card+PIN) | `POST /api/v1/atm/session` | `200` (session cookie) | `401` PIN_INVALID · `404` CARD_NOT_FOUND · `400` VALIDATION_FAILED — see **Passkey-enabled ATM** below |
+| ATM session end (kiosk exit) | `POST /api/v1/atm/session/end` | `204` (idempotent) | — (always `204`, even with no session) |
 
 ```shell
 curl -X POST localhost:8080/api/v1/accounts/<uuid>/withdrawals \
@@ -202,7 +203,8 @@ never logged). The bootstrap also links that principal to a WebAuthn user entity
 
 | Step | Method + Path | Auth | Notes |
 |---|---|---|---|
-| ATM session bootstrap | `POST /api/v1/atm/session` | card + PIN | Body `{cardNumber, pin}` → `200` + session cookie; `{accountId, maskedCardNumber, passkeyEnrolled}`. `401` wrong PIN, `404` unknown card (existing wire shapes). CSRF-exempt (under `/api/**`). |
+| ATM session bootstrap | `POST /api/v1/atm/session` | card + PIN | Body `{cardNumber, pin}` → `200` + session cookie; `{accountId, maskedCardNumber, passkeyEnrolled}`. `401` wrong PIN, `404` unknown card (existing wire shapes). CSRF-exempt (under `/api/**`), but **rotates the session id** on success (session-fixation defence, OWASP A07) and **primes the `XSRF-TOKEN` cookie** (via `CsrfCookieFilter`) so the next ceremony POST succeeds first try. |
+| ATM session end (kiosk exit) | `POST /api/v1/atm/session/end` | — | Invalidates the HttpSession + clears the SecurityContext. **Idempotent: always `204`**, even with no session (no error leak). The kiosk calls this between customers. |
 | Registration options | `POST /webauthn/register/options` | session required | Mints a creation challenge for the authenticated customer. Without a session the framework filter refuses with `400` (never issues a challenge — user-enumeration-safe). |
 | Registration | `POST /webauthn/register` | session required | Verifies attestation, stores the credential. CSRF-protected (echo `XSRF-TOKEN` cookie as `X-XSRF-TOKEN`). |
 | Authentication options | `POST /webauthn/authenticate/options` | public | Username-less discoverable-credential challenge for a returning customer. |
@@ -231,7 +233,17 @@ yml default < `.env` < real environment variable.
   enrolled passkey survives a restart.
 - **CSRF.** The existing JSON API (`/api/**`) and the pre-authentication ceremony endpoints stay
   CSRF-exempt; the post-authentication registration ceremony is CSRF-protected with a readable
-  (`httpOnly=false`) cookie token the SPA echoes back.
+  (`httpOnly=false`) cookie token the SPA echoes back. A `CsrfCookieFilter` (the official Spring
+  Security SPA pattern, `addFilterAfter(BasicAuthenticationFilter.class)`) primes the `XSRF-TOKEN`
+  cookie on **every** response — including the CSRF-exempt bootstrap — so the SPA's first
+  CSRF-protected ceremony POST succeeds on the first try (no fetch-then-403-then-retry dance).
+- **Session fixation.** The bootstrap rotates the session id (`changeSessionId()`) on successful
+  card+PIN, so a pre-authentication session cannot survive privilege elevation (OWASP A07 / ASVS
+  V3.2.1). The kiosk-exit endpoint (`POST /api/v1/atm/session/end`) invalidates the session and
+  clears the SecurityContext between customers; it is idempotent (always `204`).
+- **Kiosk session timeout.** `server.servlet.session.timeout` defaults to **2 minutes**
+  (`ATM_SESSION_TIMEOUT`, env-overridable) — a shared terminal drops an abandoned authenticated
+  session fast. Precedence: yml default < `.env` < real environment variable.
 - **`[!CONVENTION-OVERRIDE]`** `/api/**`, actuator and OpenAPI are `permitAll` to keep this
   assessment app's existing public API contract byte-identical (all 50 prior tests unchanged). A
   production bank would require authentication there — leaving them public would be

@@ -20,6 +20,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -75,5 +76,20 @@ public class AtmSessionController {
 		securityContextRepository.saveContext(context, httpRequest, httpResponse);
 
 		return ApiResponse.ok(bootstrap.response(), traceIdProvider.currentTraceId());
+	}
+
+	@PostMapping("/session/end")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	@Operation(summary = "End the ATM session (kiosk exit)",
+			description = "Invalidates the HttpSession and clears the SecurityContext so the next customer "
+					+ "starts clean. Idempotent: always 204, even when no session exists (no error leak).")
+	public void endSession(final HttpServletRequest httpRequest) {
+		// Idempotent kiosk-exit: tear down any session + clear the context. Returns 204
+		// whether or not a session was present — never leaks session state to the caller.
+		final HttpSession session = httpRequest.getSession(false);
+		if (session != null) {
+			session.invalidate();
+		}
+		SecurityContextHolder.clearContext();
 	}
 }

@@ -120,7 +120,9 @@ public class DevTestDataLogger {
 		banner.append("Passkey rpId  : %s   origins: %s   (atm.passkey.* — registration binds a credential to its origin)\n"
 				.formatted(environment.getProperty("PASSKEY_RP_ID", "localhost"),
 						environment.getProperty("PASSKEY_ORIGINS", "http://localhost:5173")));
-		banner.append("ATM session   : curl -X POST %s/api/v1/atm/session -H 'Content-Type: application/json' -d '{\"cardNumber\":\"4539148803436467\",\"pin\":\"1234\"}'  (card+PIN -> authenticated session cookie)\n"
+		banner.append("ATM session   : curl -X POST %s/api/v1/atm/session -H 'Content-Type: application/json' -d '{\"cardNumber\":\"4539148803436467\",\"pin\":\"1234\"}'  (card+PIN -> authenticated session cookie; rotates session id + primes XSRF-TOKEN)\n"
+				.formatted(baseUrl()));
+		banner.append("ATM end       : curl -X POST %s/api/v1/atm/session/end  (kiosk exit -> 204; invalidates session + clears context; idempotent)\n"
 				.formatted(baseUrl()));
 		banner.append("Passkey enrol : POST /webauthn/register/options then /webauthn/register  (needs the session above)\n");
 		banner.append("Passkey login : POST /webauthn/authenticate/options then /login/webauthn  (return visit — username-less, public)\n");
