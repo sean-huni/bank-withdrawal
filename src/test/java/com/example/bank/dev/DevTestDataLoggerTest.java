@@ -109,7 +109,12 @@ class DevTestDataLoggerTest {
 				.contains("ATM PIN").contains("1234")
 				.contains("ATM frontend").contains("http://localhost:5173")
 				.contains("ATM repo").contains("github.com/sean-huni/fe-bank-withdrawal")
-				.contains("ATM launch").contains("npm install").contains("npm run dev");
+				.contains("ATM launch").contains("npm install").contains("npm run dev")
+				// passkey-enabled ATM section — rpId/origins from the same env keys the config binds
+				.contains("Passkey rpId").contains("localhost").contains("http://localhost:5173")
+				.contains("ATM session").contains("/api/v1/atm/session")
+				.contains("Passkey enrol").contains("/webauthn/register/options")
+				.contains("Passkey login").contains("/login/webauthn");
 	}
 
 	@Test
