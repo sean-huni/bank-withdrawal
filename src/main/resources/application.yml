@@ -1,5 +1,10 @@
 server:
   port: ${SERVER_PORT:8080}
+  servlet:
+    session:
+      # Kiosk session lifetime — a shared ATM terminal must drop an abandoned
+      # customer's authenticated session fast. Default 2 minutes, env-overridable.
+      timeout: ${ATM_SESSION_TIMEOUT:2m}
   tomcat:
     # Sloppy clients send Swagger-style JSON-array sort values without percent-encoding
     # (?sort=["type"]); Tomcat rejects these RFC 3986 characters in the query target by
