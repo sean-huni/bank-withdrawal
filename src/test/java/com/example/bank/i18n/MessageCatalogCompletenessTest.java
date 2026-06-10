@@ -11,8 +11,8 @@ import java.util.Properties;
 
 import org.junit.jupiter.api.Test;
 
-import com.example.bank.api.dto.req.DepositRequest;
-import com.example.bank.api.dto.req.WithdrawalRequest;
+import com.example.bank.dto.req.DepositRequest;
+import com.example.bank.dto.req.WithdrawalRequest;
 import com.example.bank.api.validation.AllowedSortProperties;
 import com.example.bank.config.SupportedLanguages;
 import com.example.bank.exception.ErrorCode;

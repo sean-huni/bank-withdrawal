@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="001-create-accounts-table" author="sean">
+        <createTable tableName="accounts">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="holder_name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="balance" type="NUMERIC(19, 4)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="currency" type="VARCHAR(3)" defaultValue="EUR">
+                <constraints nullable="false"/>
+            </column>
+            <column name="version" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <!-- CHECK constraints have no typed tag in Liquibase OSS (<addCheckConstraint> is Pro-only),
+             so this drops to <sql>. Rolled back with the table drop above. -->
+        <sql>ALTER TABLE accounts ADD CONSTRAINT chk_accounts_balance_non_negative CHECK (balance >= 0)</sql>
+        <rollback>
+            <dropTable tableName="accounts"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="002-seed-accounts" author="sean">
+        <insert tableName="accounts">
+            <column name="holder_name" value="Alice"/>
+            <column name="balance" valueNumeric="1000.0000"/>
+        </insert>
+        <insert tableName="accounts">
+            <column name="holder_name" value="Bob"/>
+            <column name="balance" valueNumeric="250.5000"/>
+        </insert>
+        <rollback>
+            <delete tableName="accounts"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

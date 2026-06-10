@@ -5,14 +5,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 
-import com.example.bank.api.dto.resp.AccountResponse;
-import com.example.bank.api.dto.resp.CardSummaryResponse;
+import com.example.bank.dto.resp.AccountResponse;
+import com.example.bank.dto.resp.CardSummaryResponse;
 import com.example.bank.exception.AccountNotFoundException;
 import com.example.bank.exception.CardNotFoundException;
 import com.example.bank.exception.PinInvalidException;
-import com.example.bank.jdbc.model.CardEntity;
-import com.example.bank.jdbc.repo.AccountRepo;
-import com.example.bank.jdbc.repo.CardRepo;
+import com.example.bank.data.model.CardEntity;
+import com.example.bank.data.repo.AccountRepo;
+import com.example.bank.data.repo.CardRepo;
 import com.example.bank.mapper.AccountMapper;
 
 import io.micrometer.observation.annotation.Observed;
@@ -59,6 +59,13 @@ public class CardService {
 				.orElseThrow(() -> new AccountNotFoundException(card.getAccountId()));
 	}
 
+	/**
+	 * CACHING-CANDIDATE: write-once reference data — a card's number→(accountId, pinHash)
+	 * mapping is set at provisioning and never mutated by the app (no card-update path),
+	 * so it is trivially cache-correct (no eviction, no staleness window). Read on every
+	 * summary AND verifyPin; add a cache here keyed by card number if lookup latency
+	 * becomes a concern. (Deferred per caching.md — mutability, not traffic, justifies it.)
+	 */
 	private CardEntity card(final String cardNumber) {
 		return cardRepo.findByCardNumber(cardNumber).orElseThrow(CardNotFoundException::new);
 	}

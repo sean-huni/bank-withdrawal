@@ -23,7 +23,7 @@ public class TestcontainersConfiguration {
 		// 4.x community line — the 2026.x CalVer images require a license token
 		return new LocalStackContainer(DockerImageName.parse("localstack/localstack:4.14"))
 				.withServices(LocalStackContainer.Service.SNS)
-				// same ready-hook as compose.yaml — creates the withdrawal topic
+				// same ready-hook as compose.yml — creates the withdrawal topic
 				.withCopyFileToContainer(
 						MountableFile.forHostPath("localstack/init-sns.sh"),
 						"/etc/localstack/init/ready.d/init-sns.sh");

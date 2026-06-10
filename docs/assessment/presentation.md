@@ -157,7 +157,7 @@ All responses wrapped in a consistent `ApiResponse<T>` envelope (`success`, `dat
 
 - **`@Observed`** on every service method → `card_pin_verify_*`, `account_withdraw_*`, etc., plus auto `http_server_requests_*` (RED metrics).
 - **Histogram buckets enabled** where percentiles matter — Micrometer exports only `+Inf` by default, so p95 needs explicit buckets.
-- **`grafana/otel-lgtm`** container in `compose.yaml` — Grafana (3000), Prometheus (9090), OTLP (4317/4318). Exports are **dev-profile opt-in** (clean clone needs no collector).
+- **`grafana/otel-lgtm`** container in `compose.yml` — Grafana (3000), Prometheus (9090), OTLP (4317/4318). Exports are **dev-profile opt-in** (clean clone needs no collector).
 - **Failed-PIN signal** is literally `card_pin_verify_..._count{error="PinInvalidException"}` — the success-vs-failure split rides the `error` tag.
 - Every response carries a `traceId` → one click to the trace in Tempo.
 

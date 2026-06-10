@@ -21,8 +21,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.example.bank.exception.ErrorCode;
 import com.example.bank.exception.IdempotencyConflictException;
-import com.example.bank.jdbc.model.IdempotencyRecordEntity;
-import com.example.bank.jdbc.repo.IdempotencyRecordRepo;
+import com.example.bank.data.model.IdempotencyRecordEntity;
+import com.example.bank.data.repo.IdempotencyRecordRepo;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

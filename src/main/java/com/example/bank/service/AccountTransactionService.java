@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 
-import com.example.bank.api.dto.resp.TransactionResponse;
+import com.example.bank.dto.resp.TransactionResponse;
 import com.example.bank.config.CachingConfig;
 import com.example.bank.domain.AccountTransaction;
 import com.example.bank.domain.TransactionType;
@@ -20,9 +20,9 @@ import com.example.bank.exception.InsufficientFundsException;
 import com.example.bank.exception.TransactionNotFoundException;
 import com.example.bank.idempotency.Idempotent;
 import com.example.bank.idempotency.IdempotencyKey;
-import com.example.bank.jdbc.model.TransactionEntity;
-import com.example.bank.jdbc.repo.AccountRepo;
-import com.example.bank.jdbc.repo.TransactionRepo;
+import com.example.bank.data.model.TransactionEntity;
+import com.example.bank.data.repo.AccountRepo;
+import com.example.bank.data.repo.TransactionRepo;
 import com.example.bank.mapper.TransactionMapper;
 
 import io.micrometer.observation.annotation.Observed;

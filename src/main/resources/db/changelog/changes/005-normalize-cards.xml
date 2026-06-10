@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="005-create-cards-table" author="sean">
+        <createTable tableName="cards">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="account_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="card_number" type="VARCHAR(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="pin_hash" type="VARCHAR(72)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="version" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="cards" columnNames="account_id"
+                             constraintName="uk_cards_account_id"/>
+        <addUniqueConstraint tableName="cards" columnNames="card_number"
+                             constraintName="uk_cards_card_number"/>
+        <addForeignKeyConstraint baseTableName="cards" baseColumnNames="account_id"
+                                 referencedTableName="accounts" referencedColumnNames="id"
+                                 constraintName="fk_cards_account"/>
+        <rollback>
+            <dropTable tableName="cards"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="005-migrate-card-data" author="sean">
+        <!-- INSERT ... SELECT (set-based migration from a subquery) has no typed Liquibase
+             tag (<insert> only takes literal column values), so this drops to <sql>. -->
+        <sql>
+            INSERT INTO cards (account_id, card_number, pin_hash)
+            SELECT id, card_number, '$2a$10$3b0uTtoVg.p3DDmDss8Xu.uRfWWNLCt5TGOrNDtWstPLnoVAIYlDq' FROM accounts
+        </sql>
+        <rollback>
+            <delete tableName="cards"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="005-drop-account-card-number" author="sean">
+        <preConditions onFail="MARK_RAN">
+            <indexExists indexName="uk_accounts_card_number"/>
+        </preConditions>
+        <dropIndex tableName="accounts" indexName="uk_accounts_card_number"/>
+        <dropColumn tableName="accounts" columnName="card_number"/>
+        <rollback>
+            <addColumn tableName="accounts">
+                <column name="card_number" type="VARCHAR(16)"/>
+            </addColumn>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

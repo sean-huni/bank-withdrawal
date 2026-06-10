@@ -19,15 +19,15 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
-import com.example.bank.api.AccountTransactionController;
+import com.example.bank.ctl.AccountTransactionController;
 import com.example.bank.api.validation.AllowedSortProperties;
 import com.example.bank.config.SupportedLanguages;
-import com.example.bank.jdbc.model.AccountEntity;
-import com.example.bank.jdbc.model.CardEntity;
-import com.example.bank.jdbc.model.TransactionEntity;
-import com.example.bank.jdbc.repo.AccountRepo;
-import com.example.bank.jdbc.repo.CardRepo;
-import com.example.bank.jdbc.repo.TransactionRepo;
+import com.example.bank.data.model.AccountEntity;
+import com.example.bank.data.model.CardEntity;
+import com.example.bank.data.model.TransactionEntity;
+import com.example.bank.data.repo.AccountRepo;
+import com.example.bank.data.repo.CardRepo;
+import com.example.bank.data.repo.TransactionRepo;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -73,7 +73,7 @@ public class DevTestDataLogger {
 		// last tag = the newest non-default locale — stays true when TAGS grows
 		banner.append("Locale example  : curl -H 'Accept-Language: %s' %s/api/v1/accounts/{accountId}/transactions\n"
 				.formatted(SupportedLanguages.TAGS.getLast(), baseUrl));
-		// observability UIs from compose.yaml (grafana/otel-lgtm); .env can override the URLs
+		// observability UIs from compose.yml (grafana/otel-lgtm); .env can override the URLs
 		banner.append("Grafana         : %s  (LGTM all-in-one — dashboards + Explore for metrics/traces/logs)\n"
 				.formatted(environment.getProperty("GRAFANA_URL", "http://localhost:3000")));
 		banner.append("Prometheus      : %s  (raw metrics UI, embedded in the LGTM container)\n"

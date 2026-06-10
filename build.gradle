@@ -96,7 +96,7 @@ tasks.named('test') {
 
 // .env → real env vars for locally launched apps (parity with docker compose, which
 // reads the same file natively). Spring already imports .env as a property source
-// (spring.config.import in application.yaml); this additionally covers keys that must
+// (spring.config.import in application.yml); this additionally covers keys that must
 // be true environment variables — e.g. SPRING_PROFILES_ACTIVE, whose relaxed mapping
 // to spring.profiles.active only applies to genuine OS environment.
 // Precedence preserved: real environment always wins over .env.
