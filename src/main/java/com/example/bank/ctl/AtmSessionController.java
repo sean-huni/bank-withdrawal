@@ -3,7 +3,6 @@ package com.example.bank.ctl;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -46,8 +45,7 @@ public class AtmSessionController {
 
 	private final AtmSessionService atmSessionService;
 	private final TraceIdProvider traceIdProvider;
-	private final SecurityContextRepository securityContextRepository =
-			new HttpSessionSecurityContextRepository();
+	private final SecurityContextRepository securityContextRepository;
 
 	@PostMapping("/session")
 	@ResponseStatus(HttpStatus.OK)
@@ -61,6 +59,13 @@ public class AtmSessionController {
 			final HttpServletResponse httpResponse) {
 		final AtmSessionService.Bootstrap bootstrap =
 				atmSessionService.bootstrap(request.cardNumber(), request.pin());
+
+		// OWASP A07 / ASVS V3.2.1 — rotate the session id on privilege elevation so a
+		// pre-auth (pre-bootstrap) session cannot survive into the authenticated state
+		// (session-fixation defence). Ensure a session exists first, THEN change its id,
+		// BEFORE saving the security context.
+		httpRequest.getSession(true);
+		httpRequest.changeSessionId();
 
 		// Persist a fresh context into the session — the WebAuthn registration filter
 		// reads SecurityContextHolder via the session on the subsequent ceremony call.

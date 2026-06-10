@@ -7,6 +7,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.webauthn.management.JdbcPublicKeyCredentialUserEntityRepository;
@@ -58,6 +60,16 @@ public class SecurityConfig {
 	@Bean
 	public UserCredentialRepository userCredentialRepository(final JdbcOperations jdbc) {
 		return new JdbcUserCredentialRepository(jdbc);
+	}
+
+	/**
+	 * HttpSession-backed {@link SecurityContextRepository} — defined as a bean so the
+	 * ATM bootstrap controller constructor-injects it (Spring architecture canon)
+	 * rather than field-initialising its own instance.
+	 */
+	@Bean
+	public SecurityContextRepository securityContextRepository() {
+		return new HttpSessionSecurityContextRepository();
 	}
 
 	@Bean
