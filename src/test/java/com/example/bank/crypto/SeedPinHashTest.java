@@ -11,7 +11,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
  */
 class SeedPinHashTest {
 
-	/** MUST equal the literal used in db/changelog/changes/005-normalize-cards.sql. */
+	/** MUST equal the literal used in db/changelog/changes/005-normalize-cards.xml. */
 	static final String SEED_PIN_HASH = "$2a$10$3b0uTtoVg.p3DDmDss8Xu.uRfWWNLCt5TGOrNDtWstPLnoVAIYlDq";
 
 	@Test

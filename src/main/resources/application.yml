@@ -37,7 +37,7 @@ spring:
       # (verified empirically on Boot 4.0.6; no ignored-paths/predicate config is needed,
       # and no such property exists in WebMvcProperties).
   liquibase:
-    change-log: classpath:db/changelog/db.changelog-master.yaml
+    change-log: classpath:db/changelog/db.changelog-master.xml
 
 app:
   aws:
