@@ -10,4 +10,6 @@ import com.example.bank.data.model.CardEntity;
 public interface CardRepo extends CrudRepository<CardEntity, UUID> {
 
 	Optional<CardEntity> findByCardNumber(String cardNumber);
+
+	Optional<CardEntity> findByAccountId(UUID accountId);
 }

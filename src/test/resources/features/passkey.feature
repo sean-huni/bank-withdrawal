@@ -51,3 +51,17 @@ Feature: Passkey-enabled ATM (Spring Security 7 native WebAuthn)
   Scenario: Ending the kiosk session with no session is idempotent (204, no error leak)
     When the ATM session is ended with no session
     Then the session-end returns 204
+
+  Scenario: Whoami returns the authenticated session snapshot
+    Given an account for "Alice" with balance 1000.00 and card "4000222200007777" pin "1234"
+    When an ATM session is bootstrapped with card "4000222200007777" and pin "1234"
+    And the current session snapshot is requested
+    Then the session snapshot shows holder "Alice" with balance 1000.00 and passkey not enrolled
+
+  Scenario: Whoami is refused without an authenticated session
+    When the current session snapshot is requested without a session
+    Then the snapshot request is refused with status 401
+
+  Scenario: Whoami yields 404 for a non-customer principal
+    Given a bearer token authenticates the snapshot request
+    Then the snapshot request is refused with status 404

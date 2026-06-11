@@ -64,6 +64,7 @@ public class PasskeySteps {
 	private final Map<String, String> cookies = new LinkedHashMap<>();
 	private HttpResult lastResult;
 	private String preBootstrapSessionId;
+	private String bootstrappedAccountId;
 
 	@Before
 	public void bindClient() {
@@ -82,6 +83,12 @@ public class PasskeySteps {
 	public void bootstrap(final String card, final String pin) {
 		lastResult = exchangePost("/api/v1/atm/session", """
 				{"cardNumber": "%s", "pin": "%s"}""".formatted(card, pin), false);
+		// Capture the accountId on every successful bootstrap so sessionSnapshotShows
+		// can assert round-trip identity even when sessionEstablished() is not in the scenario.
+		final String id = lastResult.body().at("/data/accountId").asString();
+		if (id != null && !id.isBlank()) {
+			bootstrappedAccountId = id;
+		}
 	}
 
 	@When("passkey registration options are requested without a session")
@@ -104,7 +111,8 @@ public class PasskeySteps {
 	public void sessionEstablished() {
 		assertThat(lastResult.status()).isEqualTo(200);
 		assertThat(lastResult.body().at("/success").asBoolean()).isTrue();
-		assertThat(lastResult.body().at("/data/accountId").asString()).isNotBlank();
+		bootstrappedAccountId = lastResult.body().at("/data/accountId").asString();
+		assertThat(bootstrappedAccountId).isNotBlank();
 		// masked card: bullets + the real last-4 only (no full PAN on the wire)
 		assertThat(lastResult.body().at("/data/maskedCardNumber").asString())
 				.contains("•").matches(".*\\d{4}$");
@@ -225,6 +233,39 @@ public class PasskeySteps {
 		assertThat(result.body().at("/challenge").isMissingNode()).isTrue();
 	}
 
+	// --- Task 6: whoami / GET /api/v1/atm/session ---
+
+	@When("the current session snapshot is requested")
+	public void sessionSnapshotRequested() {
+		lastResult = exchangeGet("/api/v1/atm/session", true);
+	}
+
+	@When("the current session snapshot is requested without a session")
+	public void sessionSnapshotRequestedAnonymously() {
+		lastResult = exchangeGet("/api/v1/atm/session", false);
+	}
+
+	@Then("the session snapshot shows holder {string} with balance {bigdecimal} and passkey not enrolled")
+	public void sessionSnapshotShows(final String holder, final BigDecimal balance) {
+		assertThat(lastResult.status()).isEqualTo(200);
+		assertThat(lastResult.body().at("/data/holderName").asString()).isEqualTo(holder);
+		assertThat(lastResult.body().at("/data/balance").decimalValue()).isEqualByComparingTo(balance);
+		assertThat(lastResult.body().at("/data/maskedCardNumber").asString()).endsWith("7777");
+		assertThat(lastResult.body().at("/data/passkeyEnrolled").asBoolean()).isFalse();
+		assertThat(lastResult.body().at("/data/accountId").asString()).isEqualTo(bootstrappedAccountId);
+	}
+
+	@Given("a bearer token authenticates the snapshot request")
+	public void snapshotWithBearerToken() {
+		final String bearer = TestTokens.bearer("http://localhost:%d".formatted(port), "atm.read");
+		lastResult = exchangeGetWithBearer("/api/v1/atm/session", bearer);
+	}
+
+	@Then("the snapshot request is refused with status {int}")
+	public void snapshotRefused(final int status) {
+		assertThat(lastResult.status()).isEqualTo(status);
+	}
+
 	/**
 	 * One POST capturing cookies. When {@code csrf} is true the held XSRF-TOKEN cookie
 	 * (primed on every prior response by {@code CsrfCookieFilter} — including the
@@ -235,6 +276,21 @@ public class PasskeySteps {
 	 */
 	private HttpResult exchangePost(final String uri, final String body, final boolean csrf) {
 		return doPost(uri, body, csrf ? cookies.get("XSRF-TOKEN") : null);
+	}
+
+	/** One GET capturing cookies; {@code withCookies} controls whether the held session cookie is sent. */
+	private HttpResult exchangeGet(final String uri, final boolean withCookies) {
+		final var request = client.get().uri(uri);
+		if (withCookies) {
+			applyCookies(request);
+		}
+		return capture(request);
+	}
+
+	/** One GET with an explicit {@code Authorization} header and no session cookies. */
+	private HttpResult exchangeGetWithBearer(final String uri, final String bearerValue) {
+		final var request = client.get().uri(uri).header(HttpHeaders.AUTHORIZATION, bearerValue);
+		return capture(request);
 	}
 
 	private HttpResult doPost(final String uri, final String body, final String csrfToken) {

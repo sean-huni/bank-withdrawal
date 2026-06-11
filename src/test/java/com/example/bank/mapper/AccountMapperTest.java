@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
 
 import com.example.bank.dto.resp.AccountResponse;
+import com.example.bank.dto.resp.AtmSessionSnapshotResponse;
 import com.example.bank.data.model.AccountEntity;
 
 class AccountMapperTest {
@@ -25,6 +26,20 @@ class AccountMapperTest {
 		assertThat(r.balance()).isEqualByComparingTo("1000.00");
 		assertThat(r.currency()).isEqualTo("EUR");
 		assertThat(r.maskedCardNumber()).isEqualTo("•••• •••• •••• 6467");
+	}
+
+	@Test
+	void toSnapshotMapsAllSixFieldsIncludingMaskedCardAndPasskeyEnrolled() {
+		final AccountEntity entity = new AccountEntity("Bob", new BigDecimal("2500.00"), "USD");
+
+		final AtmSessionSnapshotResponse r = mapper.toSnapshot(entity, "4539148803437777", true);
+
+		assertThat(r.accountId()).isEqualTo(entity.getId());
+		assertThat(r.holderName()).isEqualTo("Bob");
+		assertThat(r.balance()).isEqualByComparingTo("2500.00");
+		assertThat(r.currency()).isEqualTo("USD");
+		assertThat(r.maskedCardNumber()).isEqualTo("•••• •••• •••• 7777");
+		assertThat(r.passkeyEnrolled()).isTrue();
 	}
 
 	@Test

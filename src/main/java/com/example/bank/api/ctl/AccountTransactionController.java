@@ -10,6 +10,7 @@ import com.example.bank.service.AccountTransactionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.data.web.PagedModel;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -43,6 +45,7 @@ import java.util.UUID;
 // spring.mvc.api-version.supported (application.yml) — an unversioned mapping matches any
 // supported version, so no version attribute and no hardcoded /v1 prefix here.
 @RequestMapping(value = "/api/{api-version}/accounts/{accountId}")
+@SecurityRequirement(name = "oauth2")
 @RequiredArgsConstructor
 public class AccountTransactionController {
 
@@ -61,6 +64,7 @@ public class AccountTransactionController {
 	 */
 	@PostMapping("/withdrawals")
 	@ResponseStatus(HttpStatus.CREATED)
+	@PreAuthorize("hasAuthority('SCOPE_atm.write') or @accountAccess.isOwner(authentication, #accountId)")
 	@Operation(summary = "Withdraw funds (debit)",
 			description = "Atomically debits the account if funds are sufficient, records an immutable "
 					+ "ledger entry and emits a withdrawal event after commit. Idempotent per "
@@ -86,6 +90,7 @@ public class AccountTransactionController {
 	 */
 	@PostMapping("/deposits")
 	@ResponseStatus(HttpStatus.CREATED)
+	@PreAuthorize("hasAuthority('SCOPE_atm.write') or @accountAccess.isOwner(authentication, #accountId)")
 	@Operation(summary = "Deposit funds (credit)",
 			description = "Atomically credits the account and records an immutable ledger entry. "
 					+ "Idempotent per Idempotency-Key. Responses: 201 created, 400 validation/missing key, 404 unknown account, 409 idempotency conflict.")
@@ -106,6 +111,7 @@ public class AccountTransactionController {
 	 * @return one page of transactions in {@link PagedModel} wire format
 	 */
 	@GetMapping("/transactions")
+	@PreAuthorize("hasAuthority('SCOPE_atm.read') or @accountAccess.isOwner(authentication, #accountId)")
 	@Operation(summary = "Account statement",
 			description = "Paged, ordered ledger of the account's transactions (default: newest first). "
 					+ "Sortable properties: createdAt, amount, type, balanceAfter. "
@@ -127,6 +133,7 @@ public class AccountTransactionController {
 	 * @return the transaction wrapped in the response envelope
 	 */
 	@GetMapping("/transactions/{transactionId}")
+	@PreAuthorize("hasAuthority('SCOPE_atm.read') or @accountAccess.isOwner(authentication, #accountId)")
 	@Operation(summary = "Single transaction",
 			description = "One immutable ledger entry; served from cache on repeated reads. Responses: 200, 404 unknown transaction or account.")
 	public ApiResponse<TransactionResponse> getTransaction(
