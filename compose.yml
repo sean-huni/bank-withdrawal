@@ -25,6 +25,21 @@ services:
       - '4318:4318'
       - '9090:9090'
 
+  # Grafana-MCP
+  mcp-grafana:
+    image: grafana/mcp-grafana:latest
+    command: ["-t", "streamable-http"]
+    environment:
+      GRAFANA_URL: http://grafana-lgtm:3000          # compose service name, NOT localhost
+      # Token comes from .env (gitignored) — compose reads it natively. Mint one in
+      # Grafana: Administration → Service accounts (role: Editor). Empty default keeps
+      # the clean-clone rule: the stack runs; MCP tool calls just 401 until provisioned.
+      GRAFANA_SERVICE_ACCOUNT_TOKEN: ${GRAFANA_SA_TOKEN:-}
+    ports:
+      - "8001:8000"                                   # 8000 host-side may clash; 8001 is safe
+    depends_on:
+      - grafana-lgtm
+
   localstack:
     # 4.x is the community line — the 2026.x CalVer images require a LOCALSTACK_AUTH_TOKEN (license)
     image: 'localstack/localstack:4.14'

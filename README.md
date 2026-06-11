@@ -386,6 +386,68 @@ Both UIs are also linked from the dev startup banner (override via `GRAFANA_URL`
 - Every response envelope carries the current `traceId` — paste it into Grafana/Tempo to see the request's
   spans (including the `@Observed` service timings).
 
+### mcp-grafana — Grafana via MCP (dashboards & alerts as tool calls)
+
+`compose.yml` also runs **`grafana/mcp-grafana`** so AI tooling (Claude Code & co.) manages
+dashboards and alert rules through tool calls instead of hand-edited JSON. It rides the same
+compose lifecycle as the rest of the stack (started by `bootRun`'s docker-compose support).
+
+**Wiring (verified 2026-06-11):**
+
+| Piece | Value | Why |
+| ----- | ----- | --- |
+| Transport | `streamable-http`, container port 8000 → host **8001** | host 8000 clashes easily; the MCP client config points at 8001 |
+| `GRAFANA_URL` | `http://grafana-lgtm:3000` — the **compose service name** | inside the container, `localhost:3000` is the MCP container itself → every tool call fails with `dial tcp [::1]:3000: connect: connection refused` |
+| `GRAFANA_SERVICE_ACCOUNT_TOKEN` | `${GRAFANA_SA_TOKEN:-}` from `.env` (gitignored; see `.env.example`) | never committed — GitHub push protection blocks `glsa_…` tokens; empty default keeps a clean clone bootable |
+| Client registration | `~/.claude.json` → `"grafana": { "type": "http", "url": "http://localhost:8001/mcp" }` | Claude Code talks to the container over HTTP MCP |
+
+**Pain points & pitfalls (each one cost real debugging time):**
+
+1. **`localhost` inside the container.** The single most common failure. If a tool call errors with
+   `dial tcp [::1]:3000: connect: connection refused` while `curl http://localhost:3000/api/health`
+   works from the host, the MCP process is resolving `localhost` to *itself*. `GRAFANA_URL` must use
+   the compose service name (`http://grafana-lgtm:3000`) — or `host.docker.internal` for a
+   non-compose Grafana.
+2. **Stale MCP client sessions.** Claude Code pins a streamable-HTTP session at startup. When the
+   container is recreated mid-session (every `bootRun` cycles the compose stack), tool calls can keep
+   failing with errors from the *old* server's config even though `curl -X POST
+   http://localhost:8001/mcp` (initialize) works fine. Fix: `/mcp` → reconnect (or restart the
+   session). The server is almost never the problem at that point.
+3. **Stray manually-started containers.** A leftover `docker run grafana/mcp-grafana` (no
+   `GRAFANA_URL`, defaults to `localhost:3000`) is indistinguishable from the real one in error
+   messages. `docker ps --format '{{.Names}} {{.Ports}}'` and `docker inspect <name> --format
+   '{{json .Config.Env}}'` identify which container actually serves :8001.
+4. **`uri="UNKNOWN"` for security-filter endpoints.** `http_server_requests_*` only gets a real
+   `uri` tag for MVC-handled requests. Everything answered inside the Spring Security filter chain —
+   401/403 rejections, **all `/oauth2/*` authorization-server endpoints**, `/login/webauthn` — is
+   tagged `uri="UNKNOWN"`. Don't build panels on `uri="/oauth2/token"` (always empty); use the
+   `spring_security_authentications_*` observation metrics, whose `authentication_request_type` /
+   `error` labels distinguish client-credentials, auth-code, WebAuthn and form logins, including
+   failures.
+5. **`query_prometheus` needs `startTime` *and* `endTime`** (e.g. `"now-5m"` / `"now"`) — omitting
+   `endTime` fails with a cryptic `parsing end time: syntax error`.
+6. **Fresh-stack amnesia.** `otel-lgtm` storage is container-local: a recreate wipes metric history,
+   and `rate()` needs ≥2 scrape points (10s step) — generate traffic and wait ~25s before declaring
+   a panel query broken.
+7. **No export, no data.** OTLP export only runs under the **dev profile**
+   (`SPRING_PROFILES_ACTIVE=dev`, auto-loaded from `.env` by the `bootRun` env block). If Prometheus
+   has zero `http_*`/`jvm_*` series, check the profile before blaming the stack.
+
+**Usage / smoke test:**
+
+```shell
+# is the MCP server alive and pointed at the right Grafana?
+curl -s -X POST http://localhost:8001/mcp \
+  -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}'
+# → serverInfo "mcp-grafana". A follow-up tools/call (with the returned Mcp-Session-Id header)
+#   to search_dashboards proves the Grafana connection end-to-end.
+```
+
+Current managed assets (in the `wat-alerts` folder): dashboard **`bank-cards-pin`** (RED panels +
+*Auth failures (401/403) rate* + *Authentications by type*), alert rules **Bank — high PIN failure
+rate** and **Bank — auth failure spike (401/403)**.
+
 ## Library / compatibility notes
 
 - **Spring Cloud AWS** (`io.awspring.cloud`) has no Spring Boot 4-compatible release (latest: 3.4.0, Boot 3.x) — the
