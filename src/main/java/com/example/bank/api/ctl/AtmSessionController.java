@@ -57,6 +57,9 @@ public class AtmSessionController {
 			description = "Returns the authenticated session's account snapshot — used by the kiosk UI to "
 					+ "hydrate after a passkey login (no card insertion). Responses: 200 snapshot, "
 					+ "401 no authenticated session, 404 principal has no ATM account.")
+	/**
+	 * Note: reads {@code authentication.getName()} (not {@code @AuthenticationPrincipal}) — the passkey path's principal is a {@code PublicKeyCredentialUserEntity}, and getName() is the accessor both auth types share.
+	 */
 	public ApiResponse<AtmSessionSnapshotResponse> whoami(final Authentication authentication) {
 		return ApiResponse.ok(atmSessionService.snapshot(authentication.getName()),
 				traceIdProvider.currentTraceId());

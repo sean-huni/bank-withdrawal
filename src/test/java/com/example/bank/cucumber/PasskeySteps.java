@@ -64,6 +64,7 @@ public class PasskeySteps {
 	private final Map<String, String> cookies = new LinkedHashMap<>();
 	private HttpResult lastResult;
 	private String preBootstrapSessionId;
+	private String bootstrappedAccountId;
 
 	@Before
 	public void bindClient() {
@@ -82,6 +83,12 @@ public class PasskeySteps {
 	public void bootstrap(final String card, final String pin) {
 		lastResult = exchangePost("/api/v1/atm/session", """
 				{"cardNumber": "%s", "pin": "%s"}""".formatted(card, pin), false);
+		// Capture the accountId on every successful bootstrap so sessionSnapshotShows
+		// can assert round-trip identity even when sessionEstablished() is not in the scenario.
+		final String id = lastResult.body().at("/data/accountId").asString();
+		if (id != null && !id.isBlank()) {
+			bootstrappedAccountId = id;
+		}
 	}
 
 	@When("passkey registration options are requested without a session")
@@ -104,7 +111,8 @@ public class PasskeySteps {
 	public void sessionEstablished() {
 		assertThat(lastResult.status()).isEqualTo(200);
 		assertThat(lastResult.body().at("/success").asBoolean()).isTrue();
-		assertThat(lastResult.body().at("/data/accountId").asString()).isNotBlank();
+		bootstrappedAccountId = lastResult.body().at("/data/accountId").asString();
+		assertThat(bootstrappedAccountId).isNotBlank();
 		// masked card: bullets + the real last-4 only (no full PAN on the wire)
 		assertThat(lastResult.body().at("/data/maskedCardNumber").asString())
 				.contains("•").matches(".*\\d{4}$");
@@ -238,12 +246,13 @@ public class PasskeySteps {
 	}
 
 	@Then("the session snapshot shows holder {string} with balance {bigdecimal} and passkey not enrolled")
-	public void sessionSnapshotShows(final String holder, final java.math.BigDecimal balance) {
+	public void sessionSnapshotShows(final String holder, final BigDecimal balance) {
 		assertThat(lastResult.status()).isEqualTo(200);
 		assertThat(lastResult.body().at("/data/holderName").asString()).isEqualTo(holder);
 		assertThat(lastResult.body().at("/data/balance").decimalValue()).isEqualByComparingTo(balance);
 		assertThat(lastResult.body().at("/data/maskedCardNumber").asString()).endsWith("7777");
 		assertThat(lastResult.body().at("/data/passkeyEnrolled").asBoolean()).isFalse();
+		assertThat(lastResult.body().at("/data/accountId").asString()).isEqualTo(bootstrappedAccountId);
 	}
 
 	@Then("the snapshot request is refused with status 401")

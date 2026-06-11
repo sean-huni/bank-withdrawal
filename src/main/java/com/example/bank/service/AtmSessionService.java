@@ -12,6 +12,7 @@ import org.springframework.security.web.webauthn.api.PublicKeyCredentialUserEnti
 import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
 import org.springframework.security.web.webauthn.management.UserCredentialRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.example.bank.data.model.CardEntity;
 import com.example.bank.data.model.AccountEntity;
@@ -91,10 +92,14 @@ public class AtmSessionService {
 	 * client) have no ATM session → 404 ACCOUNT_NOT_FOUND.
 	 */
 	@Observed(name = "atm.session.snapshot")
+	@Transactional(readOnly = true)
 	public AtmSessionSnapshotResponse snapshot(final String principalName) {
 		final UUID accountId = parseAccountId(principalName);
 		final AccountEntity account = accountRepo.findById(accountId)
 				.orElseThrow(() -> new AccountNotFoundException(accountId));
+		// Data-integrity gap (account without card row) surfaces as the same 404
+		// ACCOUNT_NOT_FOUND on purpose: the customer cannot operate the ATM either way,
+		// and whoami must not reveal which lookup failed.
 		final CardEntity card = cardRepo.findByAccountId(accountId)
 				.orElseThrow(() -> new AccountNotFoundException(accountId));
 		final PublicKeyCredentialUserEntity userEntity = userEntities.findByUsername(principalName);
