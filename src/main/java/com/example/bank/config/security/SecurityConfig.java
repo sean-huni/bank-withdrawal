@@ -2,16 +2,24 @@ package com.example.bank.config.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcOperations;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.util.matcher.AnyRequestMatcher;
 import org.springframework.security.web.webauthn.management.JdbcPublicKeyCredentialUserEntityRepository;
 import org.springframework.security.web.webauthn.management.JdbcUserCredentialRepository;
 import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
@@ -38,9 +46,22 @@ import lombok.RequiredArgsConstructor;
  * session, reached after card+PIN bootstrap), {@code POST
  * /webauthn/authenticate/options} + {@code POST /login/webauthn} (username-less
  * discoverable-credential login on a return visit).
+ *
+ * <p>Dual authentication. A request authenticates EITHER as a kiosk customer via
+ * the HttpSession established by card+PIN/passkey login (browser, cookie-borne),
+ * OR as an OAuth2 caller via a JWT bearer token (Swagger try-it-out, m2m
+ * scripting). Token scopes surface as {@code SCOPE_*} authorities — {@code
+ * atm.read} / {@code atm.write} / {@code atm.ops}. Own-account access is narrowed
+ * at the method layer by {@link AccountAccessEvaluator} (hence
+ * {@link EnableMethodSecurity}): a bearer caller reaches an account either through
+ * the {@code atm.read}/{@code atm.write} scope or by being its owner. The embedded
+ * authorization server that mints those tokens (its {@code @Order(1)} chain over
+ * the {@code /oauth2/**} endpoints) lives in {@link AuthorizationServerConfig};
+ * this {@code @Order(2)} chain is the application/resource-server chain.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableWebSecurity
+@EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -74,6 +95,7 @@ public class SecurityConfig {
 	}
 
 	@Bean
+	@Order(2)
 	public SecurityFilterChain securityFilterChain(final HttpSecurity http) throws Exception {
 		final CsrfTokenRequestAttributeHandler csrfHandler = new CsrfTokenRequestAttributeHandler();
 		http
@@ -81,47 +103,40 @@ public class SecurityConfig {
 						.rpName(passkey.rpName())
 						.rpId(passkey.rpId())
 						.allowedOrigins(passkey.origins().toArray(String[]::new)))
-				// CSRF protects the browser-driven WebAuthn REGISTRATION ceremony (it mutates
-				// state under an authenticated session) with a readable (httpOnly=false) cookie
-				// token the SPA echoes back. Exempt:
-				//   - /api/** — the existing JSON API stays byte-identical to its current
-				//     contract (50 existing tests unchanged); it is idempotency-keyed, not cookie-auth.
-				//   - the PRE-authentication ceremony endpoints — /webauthn/authenticate/options
-				//     returns a public challenge (no side effect) and /login/webauthn IS an
-				//     authentication mechanism (the assertion signature is the proof; CSRF adds
-				//     nothing before a session exists). Conventional login endpoints are CSRF-exempt.
 				.csrf(csrf -> csrf
 						.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
 						.csrfTokenRequestHandler(csrfHandler)
 						.ignoringRequestMatchers("/api/**", "/webauthn/authenticate/options", "/login/webauthn"))
-				// Prime the XSRF-TOKEN cookie on EVERY response (the Spring Security SPA
-				// pattern). CsrfFilter always populates the deferred-token attribute — even
-				// on the CSRF-exempt bootstrap — so this filter renders it and writes the
-				// cookie, letting the FE's first /webauthn/register/options POST succeed on
-				// the FIRST try (no fetch-then-403-then-retry dance).
 				.addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
+				// JWT bearer (Swagger try-it-out, m2m) — scopes surface as SCOPE_* authorities.
+				.oauth2ResourceServer(rs -> rs.jwt(Customizer.withDefaults()))
+				// Form login backs the authorization-code flow (/oauth2/authorize → /login).
+				.formLogin(Customizer.withDefaults())
+				// HTML navigations get the login redirect; API callers get a plain 401.
+				.exceptionHandling(ex -> ex
+						.defaultAuthenticationEntryPointFor(
+								new LoginUrlAuthenticationEntryPoint("/login"),
+								AuthorizationServerConfig.htmlOnlyMatcher())
+						.defaultAuthenticationEntryPointFor(
+								new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+								AnyRequestMatcher.INSTANCE))
 				.authorizeHttpRequests(auth -> auth
-						// [!CONVENTION-OVERRIDE] The existing JSON API, actuator, OpenAPI/Swagger
-						// and the error dispatch are permitAll. This assessment app deliberately
-						// preserves its existing PUBLIC API contract (the ATM proves the passkey
-						// CEREMONY wiring, not endpoint lockdown) so all prior tests stay green.
-						// A production bank would require authentication on /api/** and lock down
-						// actuator — leaving these public violates OWASP A01:2021 Broken Access
-						// Control (https://owasp.org/Top10/A01_2021-Broken_Access_Control/) and is
-						// acceptable ONLY because this is an assessment, not a deployed system.
-						.requestMatchers("/api/**").permitAll()
-						.requestMatchers("/actuator/**").permitAll()
-						.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-						.requestMatchers("/error").permitAll()
-						// Username-less login ceremony is public by design — a returning
-						// customer has no session yet (framework defaults; listed explicitly).
+						// ── public: the login mechanisms themselves
+						.requestMatchers(HttpMethod.GET, "/api/*/cards/*").permitAll()
+						.requestMatchers(HttpMethod.POST, "/api/*/cards/*/pin").permitAll()
+						.requestMatchers(HttpMethod.POST, "/api/*/atm/session", "/api/*/atm/session/end").permitAll()
 						.requestMatchers("/webauthn/authenticate/options", "/login/webauthn").permitAll()
-						// Everything else — notably /webauthn/register/options and
-						// /webauthn/register — requires an authenticated session, established
-						// by the card+PIN ATM bootstrap (AtmSessionController).
+						.requestMatchers("/login").permitAll()
+						// ── public: docs UI (its try-it-out calls are individually secured), probes, error dispatch
+						.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+						.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+						.requestMatchers("/error").permitAll()
+						// ── ops-scoped management surface
+						.requestMatchers("/actuator/**").hasAuthority("SCOPE_atm.ops")
+						// ── everything else: accounts API (method security narrows to scope-or-owner),
+						//    webauthn registration ceremony, the whoami snapshot
 						.anyRequest().authenticated())
-				// Shared kiosk: create a session only when one is needed (after a successful
-				// card+PIN bootstrap or passkey login), never eagerly.
+				// Shared kiosk: create a session only when one is needed.
 				.sessionManagement(session -> session
 						.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED));
 		return http.build();
