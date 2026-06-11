@@ -31,11 +31,20 @@ Feature: Endpoint security — dual session/JWT auth with scopes and own-account
     When the token reads the transactions of "SecAlice"
     Then the security response status is 200
 
-  Scenario: Actuator health is public, the rest needs atm.ops
+  Scenario: Actuator health is public
     When actuator "health" is requested anonymously
     Then the security response status is 200
+
+  Scenario: Actuator endpoints beyond health are refused anonymously
     When actuator "metrics" is requested anonymously
     Then the security response status is 401
+
+  Scenario: Actuator endpoints beyond health open to atm.ops tokens
     Given a client-credentials token with scopes "atm.ops"
     When actuator "metrics" is requested with the token
     Then the security response status is 200
+
+  Scenario: A JWT with only atm.read may not deposit
+    Given a client-credentials token with scopes "atm.read"
+    When the token deposits 10.00 to "SecAlice"
+    Then the security response status is 403

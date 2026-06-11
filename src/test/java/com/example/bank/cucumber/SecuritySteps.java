@@ -21,7 +21,6 @@ import io.cucumber.java.Before;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
-import tools.jackson.databind.ObjectMapper;
 
 /**
  * Regression-locks the dual session/JWT auth security matrix: anonymous callers,
@@ -43,6 +42,7 @@ public class SecuritySteps {
 
 	/** Seeded once per suite run (static — Spring context is shared). */
 	private static volatile UUID secAliceAccountId;
+	// set atomically with secAliceAccountId in the same synchronized block — always non-null after the first @Before
 	private static volatile UUID secBobAccountId;
 
 	@LocalServerPort
@@ -56,9 +56,6 @@ public class SecuritySteps {
 
 	@Autowired
 	private PasswordEncoder passwordEncoder;
-
-	@Autowired
-	private ObjectMapper objectMapper;
 
 	private RestTestClient client;
 
@@ -88,7 +85,7 @@ public class SecuritySteps {
 		if (secAliceAccountId == null) {
 			synchronized (SecuritySteps.class) {
 				if (secAliceAccountId == null) {
-					secAliceAccountId = upsertAccount("SecAlice", new BigDecimal("1000.00"), SEC_ALICE_CARD);
+					secAliceAccountId = upsertAccount("SecAlice", new BigDecimal("100000.00"), SEC_ALICE_CARD);
 					secBobAccountId = upsertAccount("SecBob", new BigDecimal("500.00"), SEC_BOB_CARD);
 				}
 			}
@@ -176,6 +173,7 @@ public class SecuritySteps {
 
 	@When("the token reads the transactions of {string}")
 	public void tokenReadsTransactions(final String holder) {
+		assertThat(token).as("scenario must obtain a token first").isNotNull();
 		final var request = client.get()
 				.uri("/api/v1/accounts/{accountId}/transactions", accountId(holder))
 				.header("Authorization", token);
@@ -191,10 +189,17 @@ public class SecuritySteps {
 
 	@When("actuator {string} is requested with the token")
 	public void actuatorWithToken(final String endpoint) {
+		assertThat(token).as("scenario must obtain a token first").isNotNull();
 		final var request = client.get()
 				.uri("/actuator/{endpoint}", endpoint)
 				.header("Authorization", token);
 		lastStatus = capture(request);
+	}
+
+	@When("the token deposits {bigdecimal} to {string}")
+	public void tokenDeposits(final BigDecimal amount, final String holder) {
+		assertThat(token).as("scenario must obtain a token first").isNotNull();
+		lastStatus = deposit(accountId(holder), amount, token);
 	}
 
 	// ── Then steps ───────────────────────────────────────────────────────────
@@ -212,8 +217,23 @@ public class SecuritySteps {
 	 */
 	private int withdraw(final UUID accountId, final BigDecimal amount,
 			final String authorizationHeader, final String cookie) {
+		return postOperation("withdrawals", accountId, amount, authorizationHeader, cookie);
+	}
+
+	/**
+	 * POST a deposit with the given bearer token.
+	 */
+	private int deposit(final UUID accountId, final BigDecimal amount, final String authorizationHeader) {
+		return postOperation("deposits", accountId, amount, authorizationHeader, null);
+	}
+
+	/**
+	 * POST to /api/v1/accounts/{accountId}/{operation} with optional auth header and cookie.
+	 */
+	private int postOperation(final String operation, final UUID accountId, final BigDecimal amount,
+			final String authorizationHeader, final String cookie) {
 		final var request = client.post()
-				.uri("/api/v1/accounts/{accountId}/withdrawals", accountId)
+				.uri("/api/v1/accounts/{accountId}/{operation}", accountId, operation)
 				.header("Idempotency-Key", UUID.randomUUID().toString())
 				.contentType(MediaType.APPLICATION_JSON);
 		if (authorizationHeader != null) {
