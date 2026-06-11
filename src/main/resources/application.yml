@@ -65,6 +65,8 @@ atm:
     rp-id: ${PASSKEY_RP_ID:localhost}
     rp-name: ${PASSKEY_RP_NAME:Bank Withdrawal ATM}
     origins: ${PASSKEY_ORIGINS:http://localhost:5173}
+  # Demo OAuth 2.1 identities — operator form-login (Swagger "Authorize") and the atm-ops
+  # m2m client secret. Committed defaults follow the demo-PIN convention; env-overridable.
   security:
     operator-username: ${ATM_OPERATOR_USERNAME:operator}
     operator-password: ${ATM_OPERATOR_PASSWORD:atm-demo}
