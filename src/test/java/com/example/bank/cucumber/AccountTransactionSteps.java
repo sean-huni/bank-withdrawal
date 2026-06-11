@@ -73,6 +73,21 @@ public class AccountTransactionSteps {
 
 	private RestTestClient client;
 
+	/**
+	 * Cached client-credentials token — shared across the whole suite run (static)
+	 * because the Spring context and embedded SAS are shared across scenarios, and
+	 * the issued token lives for 5 minutes which far exceeds a suite run.  Avoids
+	 * an extra /oauth2/token round-trip per scenario.
+	 */
+	private static String bearerToken;
+
+	private String bearer() {
+		if (bearerToken == null) {
+			bearerToken = TestTokens.bearer("http://localhost:%d".formatted(port), "atm.read atm.write");
+		}
+		return bearerToken;
+	}
+
 	private final Map<String, UUID> accountsByHolder = new HashMap<>();
 	private UUID lastIdempotencyKey;
 	private BigDecimal lastAmount;
@@ -191,6 +206,7 @@ public class AccountTransactionSteps {
 	public void withdrawsUsingApiVersion(final String holder, final BigDecimal amount, final String version) {
 		lastResult = capture(client.post()
 				.uri("/api/{version}/accounts/{accountId}/withdrawals", version, accountsByHolder.get(holder))
+				.header("Authorization", bearer())
 				.header("Idempotency-Key", UUID.randomUUID().toString())
 				.contentType(MediaType.APPLICATION_JSON)
 				.body("""
@@ -213,7 +229,7 @@ public class AccountTransactionSteps {
 
 		statsBeforeFetches = transactionCacheStats();
 		for (int i = 0; i < 2; i++) {
-			lastResult = get("/api/v1/accounts/{accountId}/transactions/{transactionId}",
+			lastResult = bearerAccountGet("/api/v1/accounts/{accountId}/transactions/{transactionId}",
 					accountId, transactionId);
 			assertThat(lastResult.status()).isEqualTo(200);
 		}
@@ -221,13 +237,13 @@ public class AccountTransactionSteps {
 
 	@When("the statement of an unknown account is requested")
 	public void statementOfUnknownAccount() {
-		lastResult = get("/api/v1/accounts/{accountId}/transactions", UUID.randomUUID());
+		lastResult = bearerAccountGet("/api/v1/accounts/{accountId}/transactions", UUID.randomUUID());
 	}
 
 	@When("the statement of {string} is requested sorted by {string}")
 	public void statementSortedBy(final String holder, final String sortProperty) {
 		// the template encodes the variable exactly like Swagger UI does (%5B%22string%22%5D)
-		lastResult = get("/api/v1/accounts/{accountId}/transactions?sort={sort}",
+		lastResult = bearerAccountGet("/api/v1/accounts/{accountId}/transactions?sort={sort}",
 				accountsByHolder.get(holder), sortProperty);
 	}
 
@@ -241,7 +257,7 @@ public class AccountTransactionSteps {
 
 	@When("a transaction lookup for {string} uses an unknown transaction id")
 	public void unknownTransactionLookup(final String holder) {
-		lastResult = get("/api/v1/accounts/{accountId}/transactions/{transactionId}",
+		lastResult = bearerAccountGet("/api/v1/accounts/{accountId}/transactions/{transactionId}",
 				accountsByHolder.get(holder), UUID.randomUUID());
 	}
 
@@ -436,6 +452,7 @@ public class AccountTransactionSteps {
 			final UUID idempotencyKey, final String traceparent) {
 		final var request = client.post()
 				.uri("/api/v1/accounts/{accountId}/{operation}", accountId, operation)
+				.header("Authorization", bearer())
 				.contentType(MediaType.APPLICATION_JSON);
 		if (acceptLanguage != null) {
 			request.header("Accept-Language", acceptLanguage);
@@ -454,8 +471,9 @@ public class AccountTransactionSteps {
 	private HttpResult rawGet(final String rawPathAndQuery) throws IOException {
 		try (Socket socket = new Socket("localhost", port)) {
 			socket.getOutputStream().write(
-					"GET %s HTTP/1.1\r\nHost: localhost:%d\r\nAccept: */*\r\nConnection: close\r\n\r\n"
-							.formatted(rawPathAndQuery, port)
+					("GET %s HTTP/1.1\r\nHost: localhost:%d\r\nAccept: */*\r\n"
+							+ "Authorization: %s\r\nConnection: close\r\n\r\n")
+							.formatted(rawPathAndQuery, port, bearer())
 							.getBytes(StandardCharsets.US_ASCII));
 			final String response = new String(socket.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
 			final int status = Integer.parseInt(response.split(" ", 3)[1]);
@@ -474,6 +492,16 @@ public class AccountTransactionSteps {
 		return capture(request);
 	}
 
+	/** GET with a bearer token — used for all /api/{version}/accounts/** endpoints. */
+	private HttpResult bearerAccountGet(final String uriTemplate, final Object... uriVariables) {
+		final var request = client.get().uri(uriTemplate, uriVariables)
+				.header("Authorization", bearer());
+		if (acceptLanguage != null) {
+			request.header("Accept-Language", acceptLanguage);
+		}
+		return capture(request);
+	}
+
 	private HttpResult capture(final RestTestClient.RequestHeadersSpec<?> request) {
 		final var result = request.exchange().returnResult(String.class);
 		final String body = result.getResponseBody();
@@ -484,7 +512,7 @@ public class AccountTransactionSteps {
 	}
 
 	private JsonNode statementContent(final UUID accountId) {
-		final HttpResult result = get("/api/v1/accounts/{accountId}/transactions", accountId);
+		final HttpResult result = bearerAccountGet("/api/v1/accounts/{accountId}/transactions", accountId);
 		assertThat(result.status()).isEqualTo(200);
 		return result.body().at("/data/content");
 	}

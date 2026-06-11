@@ -23,6 +23,7 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
@@ -59,6 +60,7 @@ import lombok.RequiredArgsConstructor;
 public class AuthorizationServerConfig {
 
 	private final SecurityProperties security;
+	private final PasswordEncoder passwordEncoder;
 
 	@Bean
 	@Order(1)
@@ -98,10 +100,13 @@ public class AuthorizationServerConfig {
 						.build())
 				.build();
 		final RegisteredClient atmOps = RegisteredClient.withId(UUID.randomUUID().toString())
-				// {noop}: SAS verifies client secrets through a DelegatingPasswordEncoder; the
-				// committed demo secret follows the demo-PIN convention and is env-overridable.
+				// The app exposes a BCryptPasswordEncoder bean; Spring Security 7 SAS picks it up
+				// and uses it to verify client secrets, so the stored secret must be BCrypt-encoded
+				// (not {noop}) to survive the passwordEncoder.matches() call in SAS's
+				// ClientSecretAuthenticationProvider.  The raw secret stays in application.yml
+				// (env-overridable) and is never stored anywhere in hashed form.
 				.clientId("atm-ops")
-				.clientSecret("{noop}" + security.opsClientSecret())
+				.clientSecret(passwordEncoder.encode(security.opsClientSecret()))
 				.clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
 				.authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
 				.scope("atm.read")
