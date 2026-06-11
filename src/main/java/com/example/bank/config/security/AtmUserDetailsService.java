@@ -12,8 +12,6 @@ import org.springframework.stereotype.Service;
 import com.example.bank.config.properties.SecurityProperties;
 import com.example.bank.data.repo.AccountRepo;
 
-import lombok.RequiredArgsConstructor;
-
 /**
  * Single identity source for BOTH authentication mechanisms:
  *
@@ -32,20 +30,31 @@ import lombok.RequiredArgsConstructor;
  * guessed or matched.
  */
 @Service
-@RequiredArgsConstructor
 public class AtmUserDetailsService implements UserDetailsService {
 
 	private static final String PASSWORD_LOGIN_DISABLED = "{noop}" + UUID.randomUUID();
 
 	private final SecurityProperties security;
 	private final AccountRepo accountRepo;
-	private final PasswordEncoder passwordEncoder;
+	private final String encodedOperatorPassword;
+
+	public AtmUserDetailsService(
+			final SecurityProperties security,
+			final AccountRepo accountRepo,
+			final PasswordEncoder passwordEncoder) {
+		this.security = security;
+		this.accountRepo = accountRepo;
+		this.encodedOperatorPassword = passwordEncoder.encode(security.operatorPassword());
+	}
 
 	@Override
 	public UserDetails loadUserByUsername(final String username) throws UsernameNotFoundException {
+		if (username == null) {
+			throw new UsernameNotFoundException("Unknown principal");
+		}
 		if (security.operatorUsername().equals(username)) {
 			return User.withUsername(username)
-					.password(passwordEncoder.encode(security.operatorPassword()))
+					.password(encodedOperatorPassword)
 					.roles("OPERATOR")
 					.build();
 		}

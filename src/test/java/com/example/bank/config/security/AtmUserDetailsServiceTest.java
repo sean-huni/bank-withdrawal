@@ -56,6 +56,7 @@ class AtmUserDetailsServiceTest {
 
 		assertThat(customer.getUsername()).isEqualTo(ACCOUNT_ID.toString());
 		assertThat(customer.getAuthorities()).extracting("authority").containsExactly("ROLE_CUSTOMER");
+		assertThat(encoder.matches("anything", customer.getPassword())).isFalse();
 	}
 
 	@Test
@@ -68,6 +69,12 @@ class AtmUserDetailsServiceTest {
 	@Test
 	void nonUuidNonOperatorUsernameIsRefused() {
 		assertThatThrownBy(() -> service.loadUserByUsername("admin'; DROP TABLE--"))
+				.isInstanceOf(UsernameNotFoundException.class);
+	}
+
+	@Test
+	void nullUsernameIsRefused() {
+		assertThatThrownBy(() -> service.loadUserByUsername(null))
 				.isInstanceOf(UsernameNotFoundException.class);
 	}
 }
