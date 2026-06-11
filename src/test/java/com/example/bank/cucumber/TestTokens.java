@@ -53,6 +53,10 @@ final class TestTokens {
 				throw new IllegalStateException(
 						"Token endpoint returned empty body (status %d)".formatted(response.statusCode()));
 			}
+			if (response.statusCode() != 200) {
+				throw new IllegalStateException(
+						"Token endpoint returned HTTP %d: %s".formatted(response.statusCode(), responseBody));
+			}
 			final var json = new ObjectMapper().readTree(responseBody);
 			final String token = json.at("/access_token").asString();
 			if (token == null || token.isBlank()) {

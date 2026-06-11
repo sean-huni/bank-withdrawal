@@ -79,11 +79,11 @@ public class AccountTransactionSteps {
 	 * the issued token lives for 5 minutes which far exceeds a suite run.  Avoids
 	 * an extra /oauth2/token round-trip per scenario.
 	 */
-	private static String bearerToken;
+	private static volatile String bearerToken;
 
 	private String bearer() {
 		if (bearerToken == null) {
-			bearerToken = TestTokens.bearer("http://localhost:%d".formatted(port), "atm.read atm.write");
+			bearerToken = TestTokens.bearer("http://localhost:%d".formatted(port), "atm.read atm.write"); // atm.ops deliberately omitted — actuator scenarios use their own token (see SecuritySteps)
 		}
 		return bearerToken;
 	}
@@ -484,6 +484,7 @@ public class AccountTransactionSteps {
 		}
 	}
 
+	/** Unauthenticated GET — for public endpoints only (card lookup, OpenAPI spec). */
 	private HttpResult get(final String uriTemplate, final Object... uriVariables) {
 		final var request = client.get().uri(uriTemplate, uriVariables);
 		if (acceptLanguage != null) {
