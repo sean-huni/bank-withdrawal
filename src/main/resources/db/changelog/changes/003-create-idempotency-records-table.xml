@@ -6,6 +6,10 @@
             http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
 
     <changeSet id="003-create-idempotency-records-table" author="sean">
+        <!-- Re-run safety (file-rename identity lesson): no-op when the table already exists. -->
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="idempotency_records"/></not>
+        </preConditions>
         <createTable tableName="idempotency_records">
             <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
                 <constraints primaryKey="true" nullable="false"/>

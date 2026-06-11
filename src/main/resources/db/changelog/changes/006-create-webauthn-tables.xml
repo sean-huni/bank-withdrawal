@@ -14,6 +14,11 @@
       keep the DDL DB-portable; <rollback> drops both tables (FK child first).
     -->
     <changeSet id="006-create-user-entities" author="sean">
+        <!-- These tables are genuinely new (passkey merge), so the file-rename identity risk does NOT
+             apply — but guard for consistency so every changeset in this app is re-run-safe. -->
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="user_entities"/></not>
+        </preConditions>
         <createTable tableName="user_entities">
             <column name="id" type="VARCHAR(1000)">
                 <constraints primaryKey="true" nullable="false"/>
@@ -29,6 +34,10 @@
     </changeSet>
 
     <changeSet id="006-create-user-credentials" author="sean">
+        <!-- Re-run safety for consistency (see 006-create-user-entities). -->
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="user_credentials"/></not>
+        </preConditions>
         <createTable tableName="user_credentials">
             <column name="credential_id" type="VARCHAR(1000)">
                 <constraints primaryKey="true" nullable="false"/>

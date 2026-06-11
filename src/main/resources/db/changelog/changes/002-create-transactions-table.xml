@@ -6,6 +6,10 @@
             http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
 
     <changeSet id="002-create-transactions-table" author="sean">
+        <!-- Re-run safety (file-rename identity lesson): no-op when the table already exists. -->
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="transactions"/></not>
+        </preConditions>
         <createTable tableName="transactions">
             <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
                 <constraints primaryKey="true" nullable="false"/>
@@ -48,6 +52,10 @@
     </changeSet>
 
     <changeSet id="002-index-transactions-account" author="sean">
+        <!-- Re-run safety: no-op when the index already exists (index-only changeset). -->
+        <preConditions onFail="MARK_RAN">
+            <not><indexExists indexName="idx_transactions_account_created" tableName="transactions"/></not>
+        </preConditions>
         <createIndex tableName="transactions" indexName="idx_transactions_account_created">
             <column name="account_id"/>
             <column name="created_at" descending="true"/>

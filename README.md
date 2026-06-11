@@ -259,6 +259,34 @@ yml default < `.env` < real environment variable.
 [secure context]: https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts
 [OWASP A01:2021 Broken Access Control]: https://owasp.org/Top10/A01_2021-Broken_Access_Control/
 
+## Database migrations (Liquibase)
+
+Schema is owned by Liquibase: an XML master (`db/changelog/db.changelog-master.xml`) including one
+changeset file per logical step (`db/changelog/changes/NNN-*.xml`), applied at app startup. Typed
+tags keep the DDL DB-portable; `<sql>` is used only for genuinely vendor-specific statements with no
+typed tag (CHECK constraints, `INSERT … SELECT`).
+
+### Changelog identity & re-run safety
+
+**Every changeset carries a `<preConditions onFail="MARK_RAN">` schema-state guard** (e.g.
+`<not><tableExists/></not>`, `<columnExists/>`, a `COUNT(*)` `<sqlCheck>`), so each changeset is a
+no-op when its effect is already present and executes only when it is genuinely needed.
+
+Why this matters: Liquibase identifies a changeset by the triple **(id, author, filename)**. When the
+changelogs were converted from `.sql` to `.xml` the *filename* changed, so against any database that
+had already applied the old `.sql` changelogs, the converted changesets counted as **new** and
+re-executed their DDL — surfacing as `relation "accounts" already exists` on startup. Fresh
+Testcontainers databases never exposed this because they ran the XML from empty.
+
+We deliberately chose **state-guards over identity-pinning**: we did **not** add `logicalFilePath` to
+re-pin the old identities, because the preconditions also make the schema converge from *any* reachable
+historical state (fresh / fully-migrated / partially-migrated) to the same final schema, and keep every
+changeset idempotent against manual DDL drift. The `004 → 005` chain is the subtle case: `004` adds an
+interim `accounts.card_number` column that `005` migrates into the `cards` table and then drops, so
+`004`'s guard runs it only on a genuinely fresh DB (`not cards AND not accounts.card_number`), while the
+`005` chain still runs on a pre-`005` database to complete the normalisation. Verified across all three
+states 2026-06-11.
+
 ## Observability — OpenTelemetry + Grafana LGTM
 
 `compose.yml` includes `grafana/otel-lgtm` (all-in-one: Grafana + embedded OTLP collector + Prometheus/Mimir,
