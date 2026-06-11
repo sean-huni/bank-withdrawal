@@ -6,6 +6,18 @@
             http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
 
     <changeSet id="004-add-card-number-to-accounts" author="sean">
+        <!-- Re-run safety with a state-convergence twist. This is the interim accounts.card_number
+             column that the 005 chain later migrates into the cards table and then DROPS. On Sean's
+             fully-migrated DB the column is gone but the cards table exists, so a naive
+             "not columnExists card_number" guard would RE-ADD the dropped column. Run 004 ONLY on a
+             genuinely fresh DB where NEITHER the interim column NOR the final cards table exists; on
+             any migrated/partial state it MARK_RANs and the 005 chain owns convergence. -->
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <not><tableExists tableName="cards"/></not>
+                <not><columnExists tableName="accounts" columnName="card_number"/></not>
+            </and>
+        </preConditions>
         <addColumn tableName="accounts">
             <column name="card_number" type="VARCHAR(16)"/>
         </addColumn>
@@ -25,6 +37,16 @@
     </changeSet>
 
     <changeSet id="004-unique-card-number" author="sean">
+        <!-- Re-run safety, mirroring 004-add-card-number: run only on a fresh DB. On a partial
+             (pre-005) DB the index already exists; on a fully-migrated DB the cards table exists and
+             the interim index/column are long gone. Either way MARK_RAN — never recreate an index on
+             a column the 005 chain has dropped. -->
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <not><tableExists tableName="cards"/></not>
+                <not><indexExists indexName="uk_accounts_card_number" tableName="accounts"/></not>
+            </and>
+        </preConditions>
         <createIndex tableName="accounts" indexName="uk_accounts_card_number" unique="true">
             <column name="card_number"/>
         </createIndex>
