@@ -61,3 +61,7 @@ Feature: Passkey-enabled ATM (Spring Security 7 native WebAuthn)
   Scenario: Whoami is refused without an authenticated session
     When the current session snapshot is requested without a session
     Then the snapshot request is refused with status 401
+
+  Scenario: Whoami yields 404 for a non-customer principal
+    Given a bearer token authenticates the snapshot request
+    Then the snapshot request is refused with status 404

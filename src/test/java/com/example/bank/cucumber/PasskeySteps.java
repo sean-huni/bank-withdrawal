@@ -255,9 +255,15 @@ public class PasskeySteps {
 		assertThat(lastResult.body().at("/data/accountId").asString()).isEqualTo(bootstrappedAccountId);
 	}
 
-	@Then("the snapshot request is refused with status 401")
-	public void snapshotRefused() {
-		assertThat(lastResult.status()).isEqualTo(401);
+	@Given("a bearer token authenticates the snapshot request")
+	public void snapshotWithBearerToken() {
+		final String bearer = TestTokens.bearer("http://localhost:%d".formatted(port), "atm.read");
+		lastResult = exchangeGetWithBearer("/api/v1/atm/session", bearer);
+	}
+
+	@Then("the snapshot request is refused with status {int}")
+	public void snapshotRefused(final int status) {
+		assertThat(lastResult.status()).isEqualTo(status);
 	}
 
 	/**
@@ -278,6 +284,12 @@ public class PasskeySteps {
 		if (withCookies) {
 			applyCookies(request);
 		}
+		return capture(request);
+	}
+
+	/** One GET with an explicit {@code Authorization} header and no session cookies. */
+	private HttpResult exchangeGetWithBearer(final String uri, final String bearerValue) {
+		final var request = client.get().uri(uri).header(HttpHeaders.AUTHORIZATION, bearerValue);
 		return capture(request);
 	}
 
