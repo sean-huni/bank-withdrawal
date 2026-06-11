@@ -119,6 +119,7 @@ Flow: **Repository (`jdbc/model`) → Service (`model` ↔ `domain` ↔ `dto` vi
 | Verify PIN (returns balance) | `POST /api/v1/cards/{cardNumber}/pin` | `200` | `401` PIN_INVALID (wrong PIN) · `404` CARD_NOT_FOUND · `400` VALIDATION_FAILED (malformed pin/card) |
 | ATM session bootstrap (card+PIN) | `POST /api/v1/atm/session` | `200` (session cookie) | `401` PIN_INVALID · `404` CARD_NOT_FOUND · `400` VALIDATION_FAILED — see **Passkey-enabled ATM** below |
 | ATM session end (kiosk exit) | `POST /api/v1/atm/session/end` | `204` (idempotent) | — (always `204`, even with no session) |
+| Session snapshot (whoami) | `GET /api/v1/atm/session` | `200` | `401` no authenticated session · `404` principal has no ATM account — hydrates the kiosk SPA after a passkey login |
 
 ```shell
 curl -X POST localhost:8080/api/v1/accounts/<uuid>/withdrawals \
@@ -258,6 +259,84 @@ yml default < `.env` < real environment variable.
 
 [secure context]: https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts
 [OWASP A01:2021 Broken Access Control]: https://owasp.org/Top10/A01_2021-Broken_Access_Control/
+
+## OAuth 2.1 & endpoint security
+
+An embedded **Spring Authorization Server** (merged into Spring Security 7) runs in the same JVM.
+Its `@Order(1)` filter chain covers `/oauth2/**`; the application/resource-server chain is `@Order(2)`.
+The JWT decoder reads the in-process `JWKSource` bean directly — no HTTP self-call, no RANDOM_PORT issues.
+
+### Registered clients
+
+| Client | Type | Grant | Notes |
+|---|---|---|---|
+| `swagger-ui` | Public (no secret) | Authorization Code + PKCE | Redirect URI `http://localhost:8080/swagger-ui/oauth2-redirect.html`. OAuth 2.1 mandates PKCE for public clients; `requireProofKey=true` is enforced. Consent screen disabled. |
+| `atm-ops` | Confidential | Client Credentials | Secret `atm-ops-secret` (BCrypt-encoded at registration). For m2m scripting and the Cucumber integration suite. |
+
+### Scopes
+
+| Scope | Meaning |
+|---|---|
+| `atm.read` | Read transactions and statements |
+| `atm.write` | Create withdrawals and deposits |
+| `atm.ops` | Operational access — all remaining actuator endpoints |
+
+### Demo identities
+
+All defaults follow the demo-PIN convention and are env-overridable:
+
+| Identity | Default | Env var | Use |
+|---|---|---|---|
+| Operator username | `operator` | `ATM_OPERATOR_USERNAME` | Form-login user for the Swagger "Authorize" dialog |
+| Operator password | `atm-demo` | `ATM_OPERATOR_PASSWORD` | Same |
+| `atm-ops` client secret | `atm-ops-secret` | `ATM_OPS_CLIENT_SECRET` | Client-credentials grant |
+
+### Using Swagger UI
+
+1. Open `/swagger-ui.html` (redirects to `/swagger-ui/index.html`).
+2. Click **Authorize** → select the scopes you want → click **Authorize**. The browser is redirected to
+   `/oauth2/authorize` and then to the form-login page.
+3. Sign in as `operator` / `atm-demo`.
+4. **Try it out** on any operation. Swagger sends the bearer token automatically — PKCE is pre-wired via
+   `springdoc.swagger-ui.oauth.use-pkce-with-authorization-code-grant: true`.
+
+### Token issuance (client-credentials)
+
+```bash
+curl -u atm-ops:atm-ops-secret \
+  -d 'grant_type=client_credentials&scope=atm.read atm.write' \
+  http://localhost:8080/oauth2/token
+```
+
+### Endpoint security matrix
+
+| Surface | Access rule |
+|---|---|
+| `POST /api/*/atm/session`, `POST /api/*/atm/session/end` | Public — the login mechanism itself |
+| `GET /api/*/cards/*`, `POST /api/*/cards/*/pin` | Public — card greeting and PIN verification |
+| `/webauthn/authenticate/options`, `/login/webauthn` | Public — passkey login ceremony |
+| `/login` | Public — form login |
+| `/v3/api-docs/**`, `/swagger-ui/**`, `/swagger-ui.html` | Public — UI assets (individual try-it-out calls are individually secured) |
+| `/actuator/health`, `/actuator/health/**`, `/actuator/info` | Public — liveness/readiness probes |
+| `/actuator/**` (all other endpoints) | `SCOPE_atm.ops` required |
+| Transaction write operations (`POST withdrawals`, `POST deposits`) | `SCOPE_atm.write` **or** session owner (`@accountAccess.isOwner`) |
+| Transaction read operations (`GET transactions`) | `SCOPE_atm.read` **or** session owner |
+| Everything else (WebAuthn registration, whoami) | Any authenticated principal (session cookie or JWT bearer) |
+
+Dual-auth is transparent: a request authenticates either as a kiosk customer via the HttpSession
+established by card+PIN or passkey login, or as an OAuth 2 caller via a JWT bearer token. The kiosk
+SPA itself never uses bearer tokens — it is session-cookie only.
+
+### Caveats
+
+- **Per-start signing key.** The RSA JWK is generated in-memory on startup. A backend restart
+  invalidates all previously issued tokens — in-flight Swagger sessions must re-Authorize after a
+  restart.
+- **Session cookie is `SameSite=Strict`** (`application.yml`). All legitimate flows (same-origin SPA
+  proxy, WebAuthn ceremonies, the OAuth2 authorize/login redirects) are same-site; no functional
+  impact.
+- **The kiosk SPA never uses bearer tokens.** Session-cookie dual-auth is intentional for a shared
+  ATM terminal — no access token ever sits in browser storage on a public device.
 
 ## Database migrations (Liquibase)
 
