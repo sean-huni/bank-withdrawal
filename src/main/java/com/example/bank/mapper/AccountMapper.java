@@ -6,6 +6,7 @@ import org.mapstruct.MappingConstants;
 import org.mapstruct.Named;
 
 import com.example.bank.dto.resp.AccountResponse;
+import com.example.bank.dto.resp.AtmSessionSnapshotResponse;
 import com.example.bank.data.model.AccountEntity;
 
 /** Persistence → controller-boundary dto for account snapshots; masks the PAN to last-4. */
@@ -18,6 +19,10 @@ public interface AccountMapper {
 	@Mapping(target = "currency", source = "account.currency")
 	@Mapping(target = "maskedCardNumber", source = "cardNumber", qualifiedByName = "maskCard")
 	AccountResponse toAccountResponse(AccountEntity account, String cardNumber);
+
+	@Mapping(target = "accountId", source = "account.id")
+	@Mapping(target = "maskedCardNumber", source = "cardNumber", qualifiedByName = "maskCard")
+	AtmSessionSnapshotResponse toSnapshot(AccountEntity account, String cardNumber, boolean passkeyEnrolled);
 
 	/** Keep the last four digits, mask the rest in the conventional card grouping. */
 	@Named("maskCard")

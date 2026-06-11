@@ -1,6 +1,7 @@
 package com.example.bank.service;
 
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -12,8 +13,15 @@ import org.springframework.security.web.webauthn.management.PublicKeyCredentialU
 import org.springframework.security.web.webauthn.management.UserCredentialRepository;
 import org.springframework.stereotype.Service;
 
+import com.example.bank.data.model.CardEntity;
+import com.example.bank.data.model.AccountEntity;
+import com.example.bank.data.repo.AccountRepo;
+import com.example.bank.data.repo.CardRepo;
 import com.example.bank.dto.resp.AccountResponse;
 import com.example.bank.dto.resp.AtmSessionResponse;
+import com.example.bank.dto.resp.AtmSessionSnapshotResponse;
+import com.example.bank.exception.AccountNotFoundException;
+import com.example.bank.mapper.AccountMapper;
 
 import io.micrometer.observation.annotation.Observed;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +56,9 @@ public class AtmSessionService {
 	private final CardService cardService;
 	private final PublicKeyCredentialUserEntityRepository userEntities;
 	private final UserCredentialRepository userCredentials;
+	private final AccountRepo accountRepo;
+	private final CardRepo cardRepo;
+	private final AccountMapper accountMapper;
 
 	/** Outcome of a bootstrap: the session identity to persist + the body to return. */
 	public record Bootstrap(Authentication authentication, AtmSessionResponse response) {
@@ -72,6 +83,35 @@ public class AtmSessionService {
 				principal, null, AuthorityUtils.createAuthorityList(ROLE_CUSTOMER));
 		return new Bootstrap(authentication,
 				new AtmSessionResponse(account.accountId(), account.maskedCardNumber(), passkeyEnrolled));
+	}
+
+	/**
+	 * Whoami for an authenticated session (card+PIN or passkey). The principal name
+	 * is the accountId UUID for customers; non-customer principals (e.g. a JWT
+	 * client) have no ATM session → 404 ACCOUNT_NOT_FOUND.
+	 */
+	@Observed(name = "atm.session.snapshot")
+	public AtmSessionSnapshotResponse snapshot(final String principalName) {
+		final UUID accountId = parseAccountId(principalName);
+		final AccountEntity account = accountRepo.findById(accountId)
+				.orElseThrow(() -> new AccountNotFoundException(accountId));
+		final CardEntity card = cardRepo.findByAccountId(accountId)
+				.orElseThrow(() -> new AccountNotFoundException(accountId));
+		final PublicKeyCredentialUserEntity userEntity = userEntities.findByUsername(principalName);
+		final boolean passkeyEnrolled =
+				userEntity != null && !userCredentials.findByUserId(userEntity.getId()).isEmpty();
+		return accountMapper.toSnapshot(account, card.getCardNumber(), passkeyEnrolled);
+	}
+
+	private UUID parseAccountId(final String principalName) {
+		try {
+			return UUID.fromString(principalName);
+		} catch (final IllegalArgumentException ex) {
+			// Non-UUID principal (e.g. a JWT client id like "atm-ops") → no ATM account → 404.
+			// Use a zero UUID so AccountNotFoundException(null) cannot trip a null-check in the
+			// error renderer — the zero UUID produces an unambiguous ACCOUNT_NOT_FOUND 404.
+			return new UUID(0, 0);
+		}
 	}
 
 	/**

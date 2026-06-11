@@ -225,6 +225,32 @@ public class PasskeySteps {
 		assertThat(result.body().at("/challenge").isMissingNode()).isTrue();
 	}
 
+	// --- Task 6: whoami / GET /api/v1/atm/session ---
+
+	@When("the current session snapshot is requested")
+	public void sessionSnapshotRequested() {
+		lastResult = exchangeGet("/api/v1/atm/session", true);
+	}
+
+	@When("the current session snapshot is requested without a session")
+	public void sessionSnapshotRequestedAnonymously() {
+		lastResult = exchangeGet("/api/v1/atm/session", false);
+	}
+
+	@Then("the session snapshot shows holder {string} with balance {bigdecimal} and passkey not enrolled")
+	public void sessionSnapshotShows(final String holder, final java.math.BigDecimal balance) {
+		assertThat(lastResult.status()).isEqualTo(200);
+		assertThat(lastResult.body().at("/data/holderName").asString()).isEqualTo(holder);
+		assertThat(lastResult.body().at("/data/balance").decimalValue()).isEqualByComparingTo(balance);
+		assertThat(lastResult.body().at("/data/maskedCardNumber").asString()).endsWith("7777");
+		assertThat(lastResult.body().at("/data/passkeyEnrolled").asBoolean()).isFalse();
+	}
+
+	@Then("the snapshot request is refused with status 401")
+	public void snapshotRefused() {
+		assertThat(lastResult.status()).isEqualTo(401);
+	}
+
 	/**
 	 * One POST capturing cookies. When {@code csrf} is true the held XSRF-TOKEN cookie
 	 * (primed on every prior response by {@code CsrfCookieFilter} — including the
@@ -235,6 +261,15 @@ public class PasskeySteps {
 	 */
 	private HttpResult exchangePost(final String uri, final String body, final boolean csrf) {
 		return doPost(uri, body, csrf ? cookies.get("XSRF-TOKEN") : null);
+	}
+
+	/** One GET capturing cookies; {@code withCookies} controls whether the held session cookie is sent. */
+	private HttpResult exchangeGet(final String uri, final boolean withCookies) {
+		final var request = client.get().uri(uri);
+		if (withCookies) {
+			applyCookies(request);
+		}
+		return capture(request);
 	}
 
 	private HttpResult doPost(final String uri, final String body, final String csrfToken) {

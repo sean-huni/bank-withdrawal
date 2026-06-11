@@ -4,8 +4,10 @@ import com.example.bank.config.TraceIdProvider;
 import com.example.bank.dto.req.AtmSessionRequest;
 import com.example.bank.dto.resp.ApiResponse;
 import com.example.bank.dto.resp.AtmSessionResponse;
+import com.example.bank.dto.resp.AtmSessionSnapshotResponse;
 import com.example.bank.service.AtmSessionService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -13,9 +15,11 @@ import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -45,6 +49,18 @@ public class AtmSessionController {
 	private final AtmSessionService atmSessionService;
 	private final TraceIdProvider traceIdProvider;
 	private final SecurityContextRepository securityContextRepository;
+
+	@GetMapping("/session")
+	@ResponseStatus(HttpStatus.OK)
+	@SecurityRequirement(name = "oauth2")
+	@Operation(summary = "Current session snapshot (whoami)",
+			description = "Returns the authenticated session's account snapshot — used by the kiosk UI to "
+					+ "hydrate after a passkey login (no card insertion). Responses: 200 snapshot, "
+					+ "401 no authenticated session, 404 principal has no ATM account.")
+	public ApiResponse<AtmSessionSnapshotResponse> whoami(final Authentication authentication) {
+		return ApiResponse.ok(atmSessionService.snapshot(authentication.getName()),
+				traceIdProvider.currentTraceId());
+	}
 
 	@PostMapping("/session")
 	@ResponseStatus(HttpStatus.OK)
