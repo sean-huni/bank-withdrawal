@@ -106,7 +106,12 @@ public class SecurityConfig {
 				.csrf(csrf -> csrf
 						.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
 						.csrfTokenRequestHandler(csrfHandler)
-						.ignoringRequestMatchers("/api/**", "/webauthn/authenticate/options", "/login/webauthn"))
+						.ignoringRequestMatchers("/api/**", "/webauthn/authenticate/options", "/login/webauthn")
+					// INVARIANT: the /api/** CSRF exemption is safe only while (a) the session
+					// cookie is SameSite=Strict (application.yml) and (b) no permissive CORS
+					// config exists. Adding either a CORS allow-origin or a state-changing
+					// /api/** endpoint reachable as a CORS-"simple" request reopens CSRF.
+				)
 				.addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
 				// JWT bearer (Swagger try-it-out, m2m) — scopes surface as SCOPE_* authorities.
 				.oauth2ResourceServer(rs -> rs.jwt(Customizer.withDefaults()))

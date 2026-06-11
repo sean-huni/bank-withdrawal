@@ -78,6 +78,10 @@ public class AtmSessionController {
 
 	@PostMapping("/session/end")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
+	/**
+	 * Cross-site abuse (forced logout) is prevented by the SameSite=Strict session cookie,
+	 * not by CSRF tokens — this endpoint stays CSRF-exempt under /api/**.
+	 */
 	@Operation(summary = "End the ATM session (kiosk exit)",
 			description = "Invalidates the HttpSession and clears the SecurityContext so the next customer "
 					+ "starts clean. Idempotent: always 204, even when no session exists (no error leak).")

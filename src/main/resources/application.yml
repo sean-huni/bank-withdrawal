@@ -5,6 +5,11 @@ server:
       # Kiosk session lifetime — a shared ATM terminal must drop an abandoned
       # customer's authenticated session fast. Default 2 minutes, env-overridable.
       timeout: ${ATM_SESSION_TIMEOUT:2m}
+      cookie:
+        # Defense-in-depth for the CSRF-exempt /api/** surface: the kiosk session cookie
+        # never travels on cross-site requests. All legitimate flows (SPA via same-origin
+        # proxy, WebAuthn ceremonies, the OAuth2 authorize/login redirects) are same-site.
+        same-site: strict
   tomcat:
     # Sloppy clients send Swagger-style JSON-array sort values without percent-encoding
     # (?sort=["type"]); Tomcat rejects these RFC 3986 characters in the query target by
