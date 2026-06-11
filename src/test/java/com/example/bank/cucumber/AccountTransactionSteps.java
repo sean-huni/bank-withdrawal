@@ -376,6 +376,18 @@ public class AccountTransactionSteps {
 						.isTrue()));
 	}
 
+	@Then("it declares an oauth2 security scheme with scopes {string}")
+	public void declaresOauth2Scheme(final String scopes) {
+		final var flow = lastResult.body().at("/components/securitySchemes/oauth2/flows/authorizationCode");
+		assertThat(flow.isMissingNode()).as("oauth2 authorizationCode flow must be documented").isFalse();
+		assertThat(flow.at("/authorizationUrl").asString()).isEqualTo("/oauth2/authorize");
+		assertThat(flow.at("/tokenUrl").asString()).isEqualTo("/oauth2/token");
+		for (final String scope : scopes.split(",\\s*")) {
+			assertThat(flow.at("/scopes/" + scope).isMissingNode())
+					.as("scope %s must be documented", scope).isFalse();
+		}
+	}
+
 	@Then("every documented path starts with {string} and carries no version placeholder")
 	public void documentedPathsCarryConcreteVersion(final String prefix) {
 		final var documentedPaths = lastResult.body().at("/paths").propertyNames();

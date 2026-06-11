@@ -11,3 +11,7 @@ Feature: OpenAPI documentation
   Scenario: Every documented operation accepts an Accept-Language header
     When the OpenAPI spec is fetched
     Then every documented operation declares an "Accept-Language" header parameter
+
+  Scenario: The spec advertises the OAuth2 authorization-code scheme
+    When the OpenAPI spec is fetched
+    Then it declares an oauth2 security scheme with scopes "atm.read, atm.write, atm.ops"

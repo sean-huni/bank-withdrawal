@@ -5,6 +5,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
+import io.swagger.v3.oas.annotations.security.OAuthFlow;
+import io.swagger.v3.oas.annotations.security.OAuthFlows;
+import io.swagger.v3.oas.annotations.security.OAuthScope;
+import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import io.swagger.v3.oas.models.Paths;
 import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.parameters.Parameter;
@@ -18,6 +23,15 @@ import io.swagger.v3.oas.models.parameters.Parameter;
  * path to the concrete supported version — single source of truth stays
  * {@code spring.mvc.api-version.supported}.
  */
+@SecurityScheme(name = "oauth2", type = SecuritySchemeType.OAUTH2,
+		description = "OAuth 2.1 via the embedded authorization server. Demo login: operator / atm-demo.",
+		flows = @OAuthFlows(authorizationCode = @OAuthFlow(
+				authorizationUrl = "/oauth2/authorize",
+				tokenUrl = "/oauth2/token",
+				scopes = {
+						@OAuthScope(name = "atm.read", description = "Read transactions/statements"),
+						@OAuthScope(name = "atm.write", description = "Create withdrawals/deposits"),
+						@OAuthScope(name = "atm.ops", description = "Operational/actuator access") })))
 @Configuration(proxyBeanMethods = false)
 public class OpenApiConfig {
 
