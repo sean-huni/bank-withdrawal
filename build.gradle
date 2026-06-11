@@ -27,6 +27,11 @@ dependencies {
 	// Spring Security 7 native WebAuthn (passkeys) — REAL signature verification via webauthn4j.
 	// BOM-managed by the security starter; no explicit version (gradle.properties policy honored).
 	implementation 'org.springframework.security:spring-security-webauthn'
+	// OAuth 2.1 — Spring Authorization Server (merged into Spring Security 7) embedded in this
+	// app (issuer for Swagger auth-code+PKCE and m2m client-credentials), plus JWT validation
+	// on the API. Boot 4 starter names (the 3.x spring-boot-starter-oauth2-* names were renamed).
+	implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-authorization-server'
+	implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	// AOP (idempotency + @Observed timing aspects) and distributed tracing (traceId in envelope/logs).
 	// Boot 4 dropped spring-boot-starter-aop — spring-aop ships with core, only the weaver is needed.

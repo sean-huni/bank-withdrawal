@@ -65,6 +65,10 @@ atm:
     rp-id: ${PASSKEY_RP_ID:localhost}
     rp-name: ${PASSKEY_RP_NAME:Bank Withdrawal ATM}
     origins: ${PASSKEY_ORIGINS:http://localhost:5173}
+  security:
+    operator-username: ${ATM_OPERATOR_USERNAME:operator}
+    operator-password: ${ATM_OPERATOR_PASSWORD:atm-demo}
+    ops-client-secret: ${ATM_OPS_CLIENT_SECRET:atm-ops-secret}
 
 management:
   # OTLP export is opt-in via the dev profile (application-dev.yml) — disabled here so
@@ -90,7 +94,6 @@ management:
     export:
       otlp:
         enabled: false
-  # Security is descoped for this exercise — management endpoints are public.
   endpoints:
     web:
       exposure:
