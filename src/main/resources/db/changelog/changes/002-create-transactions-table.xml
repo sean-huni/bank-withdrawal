@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="002-create-transactions-table" author="sean">
+        <!-- Re-run safety (file-rename identity lesson): no-op when the table already exists. -->
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="transactions"/></not>
+        </preConditions>
+        <createTable tableName="transactions">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="type" type="VARCHAR(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="amount" type="NUMERIC(19, 4)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="balance_after" type="NUMERIC(19, 4)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="idempotency_key" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="account_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="version" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="transactions" columnNames="idempotency_key"
+                             constraintName="uk_transactions_idempotency_key"/>
+        <addForeignKeyConstraint baseTableName="transactions" baseColumnNames="account_id"
+                                 referencedTableName="accounts" referencedColumnNames="id"
+                                 constraintName="fk_transactions_account"/>
+        <!-- CHECK constraints have no typed tag in Liquibase OSS, so this drops to <sql>. -->
+        <sql>ALTER TABLE transactions ADD CONSTRAINT chk_transactions_amount_positive CHECK (amount > 0)</sql>
+        <rollback>
+            <dropTable tableName="transactions"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="002-index-transactions-account" author="sean">
+        <!-- Re-run safety: no-op when the index already exists (index-only changeset). -->
+        <preConditions onFail="MARK_RAN">
+            <not><indexExists indexName="idx_transactions_account_created" tableName="transactions"/></not>
+        </preConditions>
+        <createIndex tableName="transactions" indexName="idx_transactions_account_created">
+            <column name="account_id"/>
+            <column name="created_at" descending="true"/>
+        </createIndex>
+        <rollback>
+            <dropIndex tableName="transactions" indexName="idx_transactions_account_created"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

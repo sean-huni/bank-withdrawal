@@ -7,6 +7,7 @@ import org.springframework.test.context.DynamicPropertyRegistrar;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.localstack.LocalStackContainer;
 import org.testcontainers.utility.DockerImageName;
+import org.testcontainers.utility.MountableFile;
 
 @TestConfiguration(proxyBeanMethods = false)
 public class TestcontainersConfiguration {
@@ -14,14 +15,18 @@ public class TestcontainersConfiguration {
 	@Bean
 	@ServiceConnection
 	PostgreSQLContainer<?> postgresContainer() {
-		return new PostgreSQLContainer<>(DockerImageName.parse("postgres:17-alpine"));
+		return new PostgreSQLContainer<>(DockerImageName.parse("postgres:18-alpine3.23"));
 	}
 
 	@Bean
 	LocalStackContainer localStackContainer() {
 		// 4.x community line — the 2026.x CalVer images require a license token
 		return new LocalStackContainer(DockerImageName.parse("localstack/localstack:4.14"))
-				.withServices(LocalStackContainer.Service.SNS);
+				.withServices(LocalStackContainer.Service.SNS)
+				// same ready-hook as compose.yml — creates the withdrawal topic
+				.withCopyFileToContainer(
+						MountableFile.forHostPath("localstack/init-sns.sh"),
+						"/etc/localstack/init/ready.d/init-sns.sh");
 	}
 
 	/**

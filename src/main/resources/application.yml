@@ -1,0 +1,121 @@
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    session:
+      # Kiosk session lifetime — a shared ATM terminal must drop an abandoned
+      # customer's authenticated session fast. Default 2 minutes, env-overridable.
+      timeout: ${ATM_SESSION_TIMEOUT:2m}
+      cookie:
+        # Defense-in-depth for the CSRF-exempt /api/** surface: the kiosk session cookie
+        # never travels on cross-site requests. All legitimate flows (SPA via same-origin
+        # proxy, WebAuthn ceremonies, the OAuth2 authorize/login redirects) are same-site.
+        same-site: strict
+  tomcat:
+    # Sloppy clients send Swagger-style JSON-array sort values without percent-encoding
+    # (?sort=["type"]); Tomcat rejects these RFC 3986 characters in the query target by
+    # default. Letting them through hands the value to SortParameterNormalizingFilter,
+    # which unwraps the decoration — identical handling for encoded and unencoded URLs.
+    relaxed-query-chars:
+      - '['
+      - ']'
+      - '"'
+
+spring:
+  application:
+    name: bank-withdrawal
+  # Auto-load a local (gitignored) .env file as a property source — see .env.example.
+  # Precedence: yml default < .env < real environment variable < test registrars.
+  config:
+    import: 'optional:file:.env[.properties]'
+  # API versioning via configuration properties — the deliberate contrast with feat-jpa,
+  # which configures the same Spring Framework 7 native versioning programmatically
+  # (ApiVersioningConfig implementing WebMvcConfigurer).
+  messages:
+    # MUST match the bundle location (i18n/messages.properties) — a mismatched
+    # basename does not fail startup; every lookup silently falls back.
+    basename: i18n/messages
+    # Unsupported Accept-Language → base (English) bundle, never the OS locale.
+    fallback-to-system-locale: false
+  mvc:
+    api-version:
+      supported: ["1"]        # supported set declared here, not in annotations
+      # version travels in the second path segment: /api/{api-version}/... (0-based index)
+      use:
+        path-segment: 1
+      # Version validation only applies to requests that match versioned mappings
+      # (/api/{api-version}/...) — springdoc, swagger-ui and actuator paths are untouched
+      # (verified empirically on Boot 4.0.6; no ignored-paths/predicate config is needed,
+      # and no such property exists in WebMvcProperties).
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+
+app:
+  aws:
+    # Defaults target the LocalStack container from compose.yml; every value is
+    # overridable via .env / environment without touching tracked files.
+    region: ${AWS_REGION:us-east-1}
+    endpoint: ${AWS_ENDPOINT:http://localhost:4566}
+    access-key: ${AWS_ACCESS_KEY:test}
+    secret-key: ${AWS_SECRET_KEY:test}
+    sns:
+      withdrawal-topic-arn: ${WITHDRAWAL_TOPIC_ARN:arn:aws:sns:us-east-1:000000000000:bank-withdrawal-events}
+
+# WebAuthn relying party for the passkey-enabled ATM (atm.passkey.*). Defaults target local
+# dev (localhost + the Vite dev server). In production rp-id is the bank's apex domain and every
+# origin is HTTPS — registration binds a credential to its origin, and the browser only allows
+# ceremonies whose origin is in this list (localhost is the one non-HTTPS exception browsers
+# permit). Overridable via .env / environment.
+atm:
+  passkey:
+    rp-id: ${PASSKEY_RP_ID:localhost}
+    rp-name: ${PASSKEY_RP_NAME:Bank Withdrawal ATM}
+    origins: ${PASSKEY_ORIGINS:http://localhost:5173}
+  # Demo OAuth 2.1 identities — operator form-login (Swagger "Authorize") and the atm-ops
+  # m2m client secret. Committed defaults follow the demo-PIN convention; env-overridable.
+  security:
+    operator-username: ${ATM_OPERATOR_USERNAME:operator}
+    operator-password: ${ATM_OPERATOR_PASSWORD:atm-demo}
+    ops-client-secret: ${ATM_OPS_CLIENT_SECRET:atm-ops-secret}
+
+springdoc:
+  swagger-ui:
+    oauth:
+      client-id: swagger-ui
+      # OAuth 2.1: public client with PKCE — no client secret in the browser.
+      use-pkce-with-authorization-code-grant: true
+
+management:
+  # OTLP export is opt-in via the dev profile (application-dev.yml) — disabled here so
+  # tests and non-dev runs never dial a collector that isn't there.
+  otlp:
+    metrics:
+      export:
+        enabled: false
+  metrics:
+    distribution:
+      # Emit percentile-histogram buckets so Grafana can compute p95/p99 — Micrometer timers
+      # otherwise ship only the +Inf bucket and histogram_quantile() returns NaN. Targeted to the
+      # HTTP server timer and the @Observed business timers (keyed by meter name).
+      percentiles-histogram:
+        http.server.requests: true
+        card.pin.verify: true
+        card.summary: true
+  tracing:
+    export:
+      otlp:
+        enabled: false
+  logging:
+    export:
+      otlp:
+        enabled: false
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.example.bank: DEBUG

@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="005-create-cards-table" author="sean">
+        <!-- Re-run safety (file-rename identity lesson): no-op when the cards table already exists. -->
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="cards"/></not>
+        </preConditions>
+        <createTable tableName="cards">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="account_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="card_number" type="VARCHAR(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="pin_hash" type="VARCHAR(72)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="version" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="cards" columnNames="account_id"
+                             constraintName="uk_cards_account_id"/>
+        <addUniqueConstraint tableName="cards" columnNames="card_number"
+                             constraintName="uk_cards_card_number"/>
+        <addForeignKeyConstraint baseTableName="cards" baseColumnNames="account_id"
+                                 referencedTableName="accounts" referencedColumnNames="id"
+                                 constraintName="fk_cards_account"/>
+        <rollback>
+            <dropTable tableName="cards"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="005-migrate-card-data" author="sean">
+        <!-- Re-run safety for the INSERT…SELECT migration. Two guards, ANDed:
+             (a) the SOURCE column accounts.card_number must still exist — once the 005 drop chain has
+                 removed it (Sean's migrated DB) there is nothing to migrate, so MARK_RAN;
+             (b) the TARGET cards table must be empty — defends against a partial state where the table
+                 was created and rows already copied but the column not yet dropped (re-running the
+                 INSERT would violate uk_cards_card_number). COUNT(*) has no typed tag → portable
+                 sqlCheck. On a fresh DB both hold (column present, cards just created empty) → runs. -->
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <columnExists tableName="accounts" columnName="card_number"/>
+                <sqlCheck expectedResult="0">SELECT COUNT(*) FROM cards</sqlCheck>
+            </and>
+        </preConditions>
+        <!-- INSERT ... SELECT (set-based migration from a subquery) has no typed Liquibase
+             tag (<insert> only takes literal column values), so this drops to <sql>. -->
+        <sql>
+            INSERT INTO cards (account_id, card_number, pin_hash)
+            SELECT id, card_number, '$2a$10$3b0uTtoVg.p3DDmDss8Xu.uRfWWNLCt5TGOrNDtWstPLnoVAIYlDq' FROM accounts
+        </sql>
+        <rollback>
+            <delete tableName="cards"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="005-drop-account-card-number" author="sean">
+        <!-- Re-run safety: this changeset drops BOTH the interim unique index and the interim
+             accounts.card_number column. Guard on BOTH artefacts so it MARK_RANs once either is
+             already gone (Sean's migrated DB has neither). On a fresh or partial (pre-005) DB both
+             exist → runs, completing convergence to the normalized cards schema. -->
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <indexExists indexName="uk_accounts_card_number"/>
+                <columnExists tableName="accounts" columnName="card_number"/>
+            </and>
+        </preConditions>
+        <dropIndex tableName="accounts" indexName="uk_accounts_card_number"/>
+        <dropColumn tableName="accounts" columnName="card_number"/>
+        <rollback>
+            <addColumn tableName="accounts">
+                <column name="card_number" type="VARCHAR(16)"/>
+            </addColumn>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

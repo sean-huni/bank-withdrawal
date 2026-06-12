@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+      Schema owned by Spring Security's JDBC WebAuthn repositories
+      (JdbcPublicKeyCredentialUserEntityRepository / JdbcUserCredentialRepository).
+      Column names and types MUST match the framework SQL verbatim — these tables
+      are written/read by the framework, not by our own entities. Binary columns are
+      Postgres BYTEA (the repositories bind them via LobHandler). Typed Liquibase tags
+      keep the DDL DB-portable; <rollback> drops both tables (FK child first).
+    -->
+    <changeSet id="006-create-user-entities" author="sean">
+        <!-- These tables are genuinely new (passkey merge), so the file-rename identity risk does NOT
+             apply — but guard for consistency so every changeset in this app is re-run-safe. -->
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="user_entities"/></not>
+        </preConditions>
+        <createTable tableName="user_entities">
+            <column name="id" type="VARCHAR(1000)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="display_name" type="VARCHAR(200)"/>
+        </createTable>
+        <rollback>
+            <dropTable tableName="user_entities"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="006-create-user-credentials" author="sean">
+        <!-- Re-run safety for consistency (see 006-create-user-entities). -->
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="user_credentials"/></not>
+        </preConditions>
+        <createTable tableName="user_credentials">
+            <column name="credential_id" type="VARCHAR(1000)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_entity_user_id" type="VARCHAR(1000)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="public_key" type="BYTEA">
+                <constraints nullable="false"/>
+            </column>
+            <column name="signature_count" type="BIGINT"/>
+            <column name="uv_initialized" type="BOOLEAN"/>
+            <column name="backup_eligible" type="BOOLEAN">
+                <constraints nullable="false"/>
+            </column>
+            <column name="authenticator_transports" type="VARCHAR(1000)"/>
+            <column name="public_key_credential_type" type="VARCHAR(100)"/>
+            <column name="backup_state" type="BOOLEAN">
+                <constraints nullable="false"/>
+            </column>
+            <column name="attestation_object" type="BYTEA"/>
+            <column name="attestation_client_data_json" type="BYTEA"/>
+            <column name="created" type="TIMESTAMPTZ"/>
+            <column name="last_used" type="TIMESTAMPTZ"/>
+            <column name="label" type="VARCHAR(1000)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addForeignKeyConstraint baseTableName="user_credentials" baseColumnNames="user_entity_user_id"
+                                 referencedTableName="user_entities" referencedColumnNames="id"
+                                 constraintName="fk_user_credentials_user_entity"/>
+        <createIndex tableName="user_credentials" indexName="idx_user_credentials_user_entity">
+            <column name="user_entity_user_id"/>
+        </createIndex>
+        <rollback>
+            <dropTable tableName="user_credentials"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

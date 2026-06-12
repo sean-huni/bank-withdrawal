@@ -1,0 +1,13 @@
+# SDKMAN environment for this project (https://sdkman.io/usage#env)
+#
+# Install any missing SDKs listed below (one-time, automated):
+#   sdk env install
+# Activate the pinned versions for the current shell:
+#   sdk env
+# Auto-activate on `cd` into this directory (one-time, global):
+#   echo "sdkman_auto_env=true" >> ~/.sdkman/etc/config
+#
+# Note: ./gradlew uses the wrapper (Gradle 9.5.1) regardless; the gradle pin
+# below only aligns a globally-installed `gradle` with the wrapper version.
+java=25-tem
+gradle=9.5.1
