@@ -150,6 +150,36 @@ class DevTestDataLoggerTest {
 	}
 
 	@Test
+	void bannerPrintsSwaggerLoginInstructions() {
+		when(accountRepo.findAll()).thenReturn(List.of());
+
+		devTestDataLogger.logTestData();
+
+		assertThat(loggedText())
+				.contains("Swagger login")
+				.contains("swagger-ui")
+				.contains("PKCE")
+				.contains("client_secret EMPTY")
+				.contains("operator / atm-demo")
+				.doesNotContain("ATM_OPERATOR_PASSWORD is overridden");
+	}
+
+	@Test
+	void bannerRedactsAnOverriddenOperatorPassword() {
+		final DevTestDataLogger overriddenLogger = new DevTestDataLogger(
+				accountRepo, cardRepo, transactionRepo, environment,
+				new SecurityProperties("operator", "real-operator-pw", "atm-ops-secret"));
+		when(accountRepo.findAll()).thenReturn(List.of());
+
+		overriddenLogger.logTestData();
+
+		assertThat(loggedText())
+				.contains("operator / $ATM_OPERATOR_PASSWORD")
+				.contains("ATM_OPERATOR_PASSWORD is overridden — value redacted")
+				.doesNotContain("real-operator-pw");
+	}
+
+	@Test
 	void bannerRedactsAnOverriddenOAuth2Secret() {
 		final DevTestDataLogger overriddenLogger = new DevTestDataLogger(
 				accountRepo, cardRepo, transactionRepo, environment,
@@ -171,6 +201,15 @@ class DevTestDataLoggerTest {
 		final String yml = Files.readString(Path.of("src/main/resources/application.yml"));
 
 		assertThat(yml).contains("${ATM_OPS_CLIENT_SECRET:%s}".formatted(DevTestDataLogger.DEMO_OPS_SECRET));
+	}
+
+	// Same fail-safe pairing for the operator password: yml drift breaks the test,
+	// constant drift makes the banner redact (never leak).
+	@Test
+	void demoOperatorPasswordConstantMatchesTheCommittedYmlDefault() throws IOException {
+		final String yml = Files.readString(Path.of("src/main/resources/application.yml"));
+
+		assertThat(yml).contains("${ATM_OPERATOR_PASSWORD:%s}".formatted(DevTestDataLogger.DEMO_OPERATOR_PASSWORD));
 	}
 
 	private AccountEntity account(final String holder, final String balance) {
