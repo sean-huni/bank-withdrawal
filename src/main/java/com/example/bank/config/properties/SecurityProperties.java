@@ -18,4 +18,11 @@ public record SecurityProperties(
 		@NotBlank(message = "{config.security.operator-username.required}") String operatorUsername,
 		@NotBlank(message = "{config.security.operator-password.required}") String operatorPassword,
 		@NotBlank(message = "{config.security.ops-client-secret.required}") String opsClientSecret) {
+
+	/** Secrets never reach logs/exceptions via accidental toString — masked by design (OWASP logging). */
+	@Override
+	public String toString() {
+		return "SecurityProperties[operatorUsername=%s, operatorPassword=****, opsClientSecret=****]"
+				.formatted(operatorUsername);
+	}
 }

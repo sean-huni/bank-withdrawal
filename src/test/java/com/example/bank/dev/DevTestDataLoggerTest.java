@@ -145,7 +145,8 @@ class DevTestDataLoggerTest {
 				.contains("atm-ops-secret")
 				.contains("http://localhost:8080/oauth2/token")
 				.contains("grant_type=client_credentials")
-				.contains("scope=atm.read atm.write");
+				.contains("scope=atm.read atm.write")
+				.doesNotContain("value redacted");
 	}
 
 	@Test

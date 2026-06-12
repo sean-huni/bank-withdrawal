@@ -1,9 +1,9 @@
 package com.example.bank.dev;
 
 import com.example.bank.api.ctl.AccountTransactionController;
-import com.example.bank.config.properties.SecurityProperties;
 import com.example.bank.api.validation.AllowedSortProperties;
 import com.example.bank.config.SupportedLanguages;
+import com.example.bank.config.properties.SecurityProperties;
 import com.example.bank.data.model.AccountEntity;
 import com.example.bank.data.model.CardEntity;
 import com.example.bank.data.model.TransactionEntity;
