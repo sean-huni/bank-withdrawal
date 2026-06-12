@@ -4,6 +4,54 @@ Take-home assessment: improve a bank account **withdrawal + event notification**
 capability. Original (intentionally flawed) snippet: [`docs/legacy/OriginalSnippet.java`](docs/legacy/OriginalSnippet.java) ·
 Assessment brief: [`docs/assessment/take-home-assessment-tech.pdf`](docs/assessment/take-home-assessment-tech.pdf)
 
+**Contents:** [Quick start](#quick-start--clone--launch-backend--atm-frontend) ·
+[Run & configure](#run) · [Architecture](#architectural-approaches) · [REST API](#rest-api) ·
+[i18n](#internationalisation-i18n) · [Passkey ATM](#passkey-enabled-atm-spring-security-7-native-webauthn) ·
+[OAuth 2.1 & security](#oauth-21--endpoint-security) · [Migrations](#database-migrations-liquibase) ·
+[Observability](#observability--opentelemetry--grafana-lgtm) · [References](#references) ·
+[Submission](#submission)
+
+## Quick start — clone & launch (backend + ATM frontend)
+
+Built for a copy-paste launch — no prior Java/Node setup needed. Install the three one-time
+prerequisites, then run one block per terminal:
+
+- **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** — must be running (databases & dashboards live in containers)
+- **[SDKMAN!](https://sdkman.io/install)** — installs the exact Java toolchain for the backend
+- **[nvm](https://github.com/nvm-sh/nvm#installing-and-updating)** — installs the exact Node toolchain for the frontend
+
+```shell
+# Terminal 1 — backend API (also starts Postgres, LocalStack and Grafana via docker compose)
+git clone git@github.com:sean-huni/bank-withdrawal.git && cd bank-withdrawal
+sdk env install && sdk env       # one-time: pinned JDK + Gradle from .sdkmanrc
+cp .env.example .env             # activates the dev profile (cheat-sheet banner + observability)
+./gradlew bootRun
+```
+
+```shell
+# Terminal 2 — ATM frontend (React)
+git clone git@github.com:sean-huni/fe-bank-withdrawal.git && cd fe-bank-withdrawal
+npm run setup                    # one-time: Node via nvm + dependencies + Playwright
+nvm use && cp .env.example .env && npm run dev
+```
+
+When the backend console prints the **`DEV TEST DATA — Swagger UI cheat sheet`** banner,
+everything below is live:
+
+| What | Where | Sign in with |
+|---|---|---|
+| 🏧 ATM app (React SPA) | http://localhost:5173 | Card `4539 1488 0343 6467` (Alice) or `6011 0009 9013 9424` (Bob) · PIN `1234` |
+| 📜 Swagger UI (REST API) | http://localhost:8080/swagger-ui.html | **Authorize** (client `swagger-ui`, PKCE public — leave `client_secret` EMPTY) → form login `operator` / `atm-demo` |
+| 🧾 OpenAPI spec | http://localhost:8080/v3/api-docs | — |
+| 📊 Grafana (dashboards + alerts) | http://localhost:3000 | `admin` / `admin` |
+| 📈 Prometheus (raw metrics) | http://localhost:9090 | — |
+| 🤖 OAuth2 token (scripts/m2m) | `POST http://localhost:8080/oauth2/token` | `curl -u atm-ops:atm-ops-secret -d 'grant_type=client_credentials&scope=atm.read atm.write' http://localhost:8080/oauth2/token` |
+
+The dev banner re-prints all of the above on every start — plus the **live seeded account and
+transaction ids** (regenerated per database, so the console is the always-true cheat sheet).
+All credentials here are committed demo defaults for local development only; override any of
+them via `.env` and the banner prints a redaction notice instead of the value.
+
 ## Stack
 
 - Java 25 · Spring Boot 4.0.6 · Gradle 9.5.1 (wrapper)
@@ -48,23 +96,27 @@ The same file is consumed three ways — one override point for everything:
 
 Precedence: yml default < `.env` < real environment variable (the shell always wins, e.g.
 `SPRING_PROFILES_ACTIVE=default ./gradlew bootRun` overrides the file). With the `dev` profile active,
-startup prints a **DEV TEST DATA** banner: Swagger UI URL, seeded account/transaction ids, sortable fields
-and a fresh `Idempotency-Key` — everything needed to drive the API from Swagger UI.
+startup prints a **DEV TEST DATA** banner — the full local cheat sheet: Swagger/Grafana/Prometheus URLs,
+seeded account/transaction ids, sortable fields, a fresh `Idempotency-Key`, the Swagger OAuth2 login,
+an `atm-ops` token curl, and the ATM frontend/passkey crib notes. Credentials in the banner follow a
+**redaction guard**: a secret prints only while it equals the committed demo default — any value
+overridden via `.env`/environment is replaced by a redaction notice, because dev logs also ship to the
+OTLP collector (Loki) and must never persist real secrets.
 
 ## Architectural approaches
 
 ### Gitflow branching model
 
-`feat-*` → `dev` → `rel-*` → `int-*` → `main`
+`feat-*` → `dev` → `int-*` → `rel-*` → `main`
 
 | Branch      | Purpose                                                                                  |
 |-------------|------------------------------------------------------------------------------------------|
 | `feat-jpa`  | Implementation variant using Spring Data **JPA** + programmatic API-versioning config    |
 | `feat-jdbc` | Implementation variant using Spring Data **JDBC** + yml API-versioning config            |
-| `dev`       | Integration branch — feature branches merge here first; carries the JDBC implementation  |
-| `rel-*`     | Release stabilization (cut from `dev` when a release candidate is ready)                 |
-| `int-*`     | Integration/staging verification before production promotion                            |
-| `main`      | Production-ready history; currently the persistence-neutral base skeleton                |
+| `dev`       | Integration trunk — feature branches merge here first; carries the JDBC implementation   |
+| `int-*`     | Integration/staging verification (cut from `dev`)                                       |
+| `rel-*`     | Release stabilization before production promotion                                       |
+| `main`      | Production-ready history — only ever receives releases                                  |
 
 Features are developed in isolation and flow toward `main` only through integration and release gates —
 history stays linear per branch, every commit is thematic and `./gradlew clean build`-verified at its tip.
@@ -291,6 +343,10 @@ All defaults follow the demo-PIN convention and are env-overridable:
 | Operator password | `atm-demo` | `ATM_OPERATOR_PASSWORD` | Same |
 | `atm-ops` client secret | `atm-ops-secret` | `ATM_OPS_CLIENT_SECRET` | Client-credentials grant |
 
+These print in the dev banner only while they equal the committed defaults above; an overridden
+value is redacted in the banner and masked in `SecurityProperties.toString()`, so a real credential
+never reaches the console or the OTLP log stream (Loki).
+
 ### Using Swagger UI
 
 1. Open `/swagger-ui.html` (redirects to `/swagger-ui/index.html`).
@@ -299,6 +355,21 @@ All defaults follow the demo-PIN convention and are env-overridable:
 3. Sign in as `operator` / `atm-demo`.
 4. **Try it out** on any operation. Swagger sends the bearer token automatically — PKCE is pre-wired via
    `springdoc.swagger-ui.oauth.use-pkce-with-authorization-code-grant: true`.
+
+The dev banner prints the same recipe on every start:
+
+```
+Swagger login   : Authorize (client swagger-ui, PKCE public — leave client_secret EMPTY) -> form login operator / atm-demo
+```
+
+> **Common mixups** (both hit in real testing; full flow verified end-to-end with a scripted browser):
+>
+> - The form login authenticates the **operator user** (`operator` / `atm-demo`). The
+>   `atm-ops` / `atm-ops-secret` pair is a *client-credentials client* for curl/m2m — on the login
+>   form it always yields *Invalid credentials*. Two clients, two flows (see the table above).
+> - Swagger's default `pageable` example sends `"sort": ["string"]`, which the sort whitelist rejects
+>   with `400 VALIDATION_FAILED` — not an auth failure. Use e.g.
+>   `{"page": 0, "size": 5, "sort": ["createdAt,desc"]}`.
 
 ### Token issuance (client-credentials)
 
@@ -386,6 +457,25 @@ Both UIs are also linked from the dev startup banner (override via `GRAFANA_URL`
 - Every response envelope carries the current `traceId` — paste it into Grafana/Tempo to see the request's
   spans (including the `@Observed` service timings).
 
+### Dashboards & alert rules (what to look at)
+
+Sign in at http://localhost:3000 as `admin` / `admin`:
+
+| Where in Grafana | Asset | Shows |
+|---|---|---|
+| **Dashboards → `wat-alerts` folder** | `bank-cards-pin` | RED panels for the cards/PIN endpoints, *Auth failures (401/403) rate*, *Authentications by type* (client-credentials vs auth-code vs WebAuthn vs form login) |
+| **Alerting → Alert rules** | *Bank — high PIN failure rate* · *Bank — auth failure spike (401/403)* | Fire on brute-force-shaped traffic |
+| **Explore → Tempo** | trace lookup | Paste the `traceId` from any API error envelope to see that request's spans |
+| **Explore → Loki** | log search | App logs, including the dev banner — the reason banner secrets are redaction-guarded |
+
+The **ATM frontend ships its own dashboard** (sessions, withdrawals/deposits by result, Web Vitals
+p95) with import steps in the
+[fe-bank-withdrawal README](https://github.com/sean-huni/fe-bank-withdrawal#import-the-grafana-dashboard).
+
+Two operational notes: `otel-lgtm` storage is **container-local** — recreating the compose stack
+wipes dashboards, alert rules and metric history (re-provision via the Grafana MCP workflow below);
+and dashboards/alerts are **managed through mcp-grafana tool calls**, never hand-edited JSON.
+
 ### mcp-grafana — Grafana via MCP (dashboards & alerts as tool calls)
 
 `compose.yml` also runs **`grafana/mcp-grafana`** so AI tooling (Claude Code & co.) manages
@@ -444,9 +534,7 @@ curl -s -X POST http://localhost:8001/mcp \
 #   to search_dashboards proves the Grafana connection end-to-end.
 ```
 
-Current managed assets (in the `wat-alerts` folder): dashboard **`bank-cards-pin`** (RED panels +
-*Auth failures (401/403) rate* + *Authentications by type*), alert rules **Bank — high PIN failure
-rate** and **Bank — auth failure spike (401/403)**.
+Current managed assets are listed in **Dashboards & alert rules** above.
 
 ## Library / compatibility notes
 
@@ -465,6 +553,27 @@ rate** and **Bank — auth failure spike (401/403)**.
 - **Spring Data JDBC + UUIDs**: Data JDBC includes the id column in INSERTs, bypassing the DB-side `gen_random_uuid()` default — ids are assigned client-side by a `BeforeConvertCallback` (`JdbcAuditingConfig`).
 - **Data JDBC `@Query`**: always native SQL; `UPDATE … RETURNING balance` runs as a row-returning statement on PostgreSQL, keeping the funds check atomic without JPA.
 - **Optimistic locking**: Data JDBC throws the `org.springframework.dao.OptimisticLockingFailureException` root type (spring-orm's JPA subclass is not on the classpath) — the advice handles exactly that type.
+
+## References
+
+Standards and sources this project deliberately follows (cited inline throughout):
+
+| Topic | Reference |
+|---|---|
+| REST API design | Zalando RESTful API Guidelines — https://opensource.zalando.com/restful-api-guidelines/ |
+| Idempotency keys on POST | Stripe idempotent requests — https://docs.stripe.com/api/idempotent_requests |
+| 12FactorApp Alignment | https://12factor.net/ |
+| Gitflow branching model | https://nvie.com/posts/a-successful-git-branching-model/ |
+| OAuth 2.1 (PKCE mandatory for public clients) | https://oauth.net/2.1/ |
+| Spring Authorization Server | https://docs.spring.io/spring-authorization-server/reference/index.html |
+| WebAuthn / passkeys | W3C WebAuthn Level 3 — https://www.w3.org/TR/webauthn-3/ · Spring Security passkeys — https://docs.spring.io/spring-security/reference/servlet/authentication/passkeys.html |
+| API versioning (Spring Framework 7) | https://docs.spring.io/spring-framework/reference/web/webmvc-versioning.html |
+| OWASP | Top 10 — https://owasp.org/Top10/ · Logging cheat sheet (why banner secrets are redaction-guarded) — https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html |
+| Dev-credential console precedent | Spring Boot's generated dev password — https://docs.spring.io/spring-boot/reference/web/spring-security.html |
+| Database migrations | Liquibase best practices — https://docs.liquibase.com/concepts/bestpractices.html |
+| Observability | OpenTelemetry — https://opentelemetry.io/docs/ · Grafana LGTM all-in-one — https://github.com/grafana/docker-otel-lgtm · RED method — https://grafana.com/blog/2018/08/02/the-red-method-how-to-instrument-your-services/ |
+| WebAuthn secure-context requirement | https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts |
+| ATM frontend (React SPA) | https://github.com/sean-huni/fe-bank-withdrawal |
 
 ---
 
