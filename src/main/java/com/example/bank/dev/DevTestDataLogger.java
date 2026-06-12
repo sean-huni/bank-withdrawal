@@ -1,6 +1,7 @@
 package com.example.bank.dev;
 
 import com.example.bank.api.ctl.AccountTransactionController;
+import com.example.bank.config.properties.SecurityProperties;
 import com.example.bank.api.validation.AllowedSortProperties;
 import com.example.bank.config.SupportedLanguages;
 import com.example.bank.data.model.AccountEntity;
@@ -46,10 +47,14 @@ public class DevTestDataLogger {
 
 	private static final int RECENT_TRANSACTIONS = 5;
 
+	/** Mirrors the committed demo default in application.yml ({@code ${ATM_OPS_CLIENT_SECRET:atm-ops-secret}}); a test pins the two together. */
+	static final String DEMO_OPS_SECRET = "atm-ops-secret";
+
 	private final AccountRepo accountRepo;
 	private final CardRepo cardRepo;
 	private final TransactionRepo transactionRepo;
 	private final Environment environment;
+	private final SecurityProperties security;
 
 	@EventListener(ApplicationReadyEvent.class)
 	public void logTestData() {
@@ -78,10 +83,33 @@ public class DevTestDataLogger {
 				.formatted(environment.getProperty("PROMETHEUS_URL", "http://localhost:9090")));
 		banner.append("Idempotency-Key : %s  (fresh UUID — required header on every POST; reuse replays, new key per new operation)\n"
 				.formatted(UUID.randomUUID()));
+		appendOAuth2(banner);
 		appendAtmFrontend(banner);
 		appendAccounts(banner);
 		banner.append("=================================================================================");
 		log.info("{}", banner);
+	}
+
+	/**
+	 * Scripting credentials for the client-credentials grant. The secret prints ONLY
+	 * while it equals the committed demo default — an overridden ATM_OPS_CLIENT_SECRET
+	 * is redacted so a real secret never reaches the log stream (OWASP logging;
+	 * trade-off acknowledged in the 2026-06-12 design spec). Dev logs also flow to the
+	 * OTLP collector, so this guard protects Loki too, not just the console.
+	 */
+	private void appendOAuth2(final StringBuilder banner) {
+		final String tokenUrl = "%s/oauth2/token".formatted(baseUrl());
+		banner.append("OAuth2 client   : atm-ops  (client_credentials; scopes: atm.read atm.write | atm.ops for actuator)\n");
+		if (DEMO_OPS_SECRET.equals(security.opsClientSecret())) {
+			banner.append("OAuth2 secret   : %s  (committed demo default — override via ATM_OPS_CLIENT_SECRET)\n"
+					.formatted(DEMO_OPS_SECRET));
+			banner.append("OAuth2 token    : curl -u atm-ops:%s -d 'grant_type=client_credentials&scope=atm.read atm.write' %s\n"
+					.formatted(DEMO_OPS_SECRET, tokenUrl));
+		} else {
+			banner.append("OAuth2 secret   : ATM_OPS_CLIENT_SECRET is overridden — value redacted\n");
+			banner.append("OAuth2 token    : curl -u atm-ops:$ATM_OPS_CLIENT_SECRET -d 'grant_type=client_credentials&scope=atm.read atm.write' %s\n"
+					.formatted(tokenUrl));
+		}
 	}
 
 	/**
