@@ -6,7 +6,10 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -18,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.mock.env.MockEnvironment;
 
+import com.example.bank.config.properties.SecurityProperties;
 import com.example.bank.domain.TransactionType;
 import com.example.bank.data.model.AccountEntity;
 import com.example.bank.data.model.CardEntity;
@@ -46,8 +50,11 @@ class DevTestDataLoggerTest {
 	private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
 	private final Logger logger = (Logger) LoggerFactory.getLogger(DevTestDataLogger.class);
 
+	private final SecurityProperties security =
+			new SecurityProperties("operator", "atm-demo", "atm-ops-secret");
+
 	private final DevTestDataLogger devTestDataLogger =
-			new DevTestDataLogger(accountRepo, cardRepo, transactionRepo, environment);
+			new DevTestDataLogger(accountRepo, cardRepo, transactionRepo, environment, security);
 
 	@BeforeEach
 	void attachAppender() {
@@ -124,6 +131,85 @@ class DevTestDataLoggerTest {
 		devTestDataLogger.logTestData();
 
 		assertThat(loggedText()).contains("No accounts found");
+	}
+
+	@Test
+	void bannerPrintsDemoOAuth2CredentialAndTokenCurl() {
+		when(accountRepo.findAll()).thenReturn(List.of());
+
+		devTestDataLogger.logTestData();
+
+		assertThat(loggedText())
+				.contains("OAuth2 client")
+				.contains("atm-ops")
+				.contains("atm-ops-secret")
+				.contains("http://localhost:8080/oauth2/token")
+				.contains("grant_type=client_credentials")
+				.contains("scope=atm.read atm.write")
+				.doesNotContain("value redacted");
+	}
+
+	@Test
+	void bannerPrintsSwaggerLoginInstructions() {
+		when(accountRepo.findAll()).thenReturn(List.of());
+
+		devTestDataLogger.logTestData();
+
+		assertThat(loggedText())
+				.contains("Swagger login")
+				.contains("swagger-ui")
+				.contains("PKCE")
+				.contains("client_secret EMPTY")
+				.contains("operator / atm-demo")
+				.doesNotContain("ATM_OPERATOR_PASSWORD is overridden");
+	}
+
+	@Test
+	void bannerRedactsAnOverriddenOperatorPassword() {
+		final DevTestDataLogger overriddenLogger = new DevTestDataLogger(
+				accountRepo, cardRepo, transactionRepo, environment,
+				new SecurityProperties("operator", "real-operator-pw", "atm-ops-secret"));
+		when(accountRepo.findAll()).thenReturn(List.of());
+
+		overriddenLogger.logTestData();
+
+		assertThat(loggedText())
+				.contains("operator / $ATM_OPERATOR_PASSWORD")
+				.contains("ATM_OPERATOR_PASSWORD is overridden — value redacted")
+				.doesNotContain("real-operator-pw");
+	}
+
+	@Test
+	void bannerRedactsAnOverriddenOAuth2Secret() {
+		final DevTestDataLogger overriddenLogger = new DevTestDataLogger(
+				accountRepo, cardRepo, transactionRepo, environment,
+				new SecurityProperties("operator", "atm-demo", "real-secret-from-env"));
+		when(accountRepo.findAll()).thenReturn(List.of());
+
+		overriddenLogger.logTestData();
+
+		assertThat(loggedText())
+				.contains("ATM_OPS_CLIENT_SECRET is overridden — value redacted")
+				.contains("curl -u atm-ops:$ATM_OPS_CLIENT_SECRET")
+				.doesNotContain("real-secret-from-env");
+	}
+
+	// Drift in either direction fails SAFE: a changed yml default breaks this test; a changed
+	// constant makes the banner redact (never leak). application-dev.yml carries no secret defaults.
+	@Test
+	void demoSecretConstantMatchesTheCommittedYmlDefault() throws IOException {
+		final String yml = Files.readString(Path.of("src/main/resources/application.yml"));
+
+		assertThat(yml).contains("${ATM_OPS_CLIENT_SECRET:%s}".formatted(DevTestDataLogger.DEMO_OPS_SECRET));
+	}
+
+	// Same fail-safe pairing for the operator password: yml drift breaks the test,
+	// constant drift makes the banner redact (never leak).
+	@Test
+	void demoOperatorPasswordConstantMatchesTheCommittedYmlDefault() throws IOException {
+		final String yml = Files.readString(Path.of("src/main/resources/application.yml"));
+
+		assertThat(yml).contains("${ATM_OPERATOR_PASSWORD:%s}".formatted(DevTestDataLogger.DEMO_OPERATOR_PASSWORD));
 	}
 
 	private AccountEntity account(final String holder, final String balance) {

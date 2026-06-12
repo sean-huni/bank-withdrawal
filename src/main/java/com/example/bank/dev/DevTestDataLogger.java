@@ -3,6 +3,7 @@ package com.example.bank.dev;
 import com.example.bank.api.ctl.AccountTransactionController;
 import com.example.bank.api.validation.AllowedSortProperties;
 import com.example.bank.config.SupportedLanguages;
+import com.example.bank.config.properties.SecurityProperties;
 import com.example.bank.data.model.AccountEntity;
 import com.example.bank.data.model.CardEntity;
 import com.example.bank.data.model.TransactionEntity;
@@ -46,10 +47,17 @@ public class DevTestDataLogger {
 
 	private static final int RECENT_TRANSACTIONS = 5;
 
+	/** Mirrors the committed demo default in application.yml ({@code ${ATM_OPS_CLIENT_SECRET:atm-ops-secret}}); a test pins the two together. */
+	static final String DEMO_OPS_SECRET = "atm-ops-secret";
+
+	/** Mirrors the committed demo default in application.yml ({@code ${ATM_OPERATOR_PASSWORD:atm-demo}}); a test pins the two together. */
+	static final String DEMO_OPERATOR_PASSWORD = "atm-demo";
+
 	private final AccountRepo accountRepo;
 	private final CardRepo cardRepo;
 	private final TransactionRepo transactionRepo;
 	private final Environment environment;
+	private final SecurityProperties security;
 
 	@EventListener(ApplicationReadyEvent.class)
 	public void logTestData() {
@@ -78,10 +86,49 @@ public class DevTestDataLogger {
 				.formatted(environment.getProperty("PROMETHEUS_URL", "http://localhost:9090")));
 		banner.append("Idempotency-Key : %s  (fresh UUID — required header on every POST; reuse replays, new key per new operation)\n"
 				.formatted(UUID.randomUUID()));
+		appendOAuth2(banner);
 		appendAtmFrontend(banner);
 		appendAccounts(banner);
 		banner.append("=================================================================================");
 		log.info("{}", banner);
+	}
+
+	/**
+	 * Scripting credentials for the client-credentials grant. The secret prints ONLY
+	 * while it equals the committed demo default — an overridden ATM_OPS_CLIENT_SECRET
+	 * is redacted so a real secret never reaches the log stream (OWASP logging;
+	 * trade-off acknowledged in the 2026-06-12 design spec). Dev logs also flow to the
+	 * OTLP collector, so this guard protects Loki too, not just the console.
+	 */
+	private void appendOAuth2(final StringBuilder banner) {
+		final String tokenUrl = "%s/oauth2/token".formatted(baseUrl());
+		appendSwaggerLogin(banner);
+		banner.append("OAuth2 client   : atm-ops  (client_credentials; scopes: atm.read atm.write | atm.ops for actuator — for curl/m2m, NOT the Swagger dialog)\n");
+		if (DEMO_OPS_SECRET.equals(security.opsClientSecret())) {
+			banner.append("OAuth2 secret   : %s  (committed demo default — override via ATM_OPS_CLIENT_SECRET)\n"
+					.formatted(DEMO_OPS_SECRET));
+			banner.append("OAuth2 token    : curl -u atm-ops:%s -d 'grant_type=client_credentials&scope=atm.read atm.write' %s\n"
+					.formatted(DEMO_OPS_SECRET, tokenUrl));
+		} else {
+			banner.append("OAuth2 secret   : ATM_OPS_CLIENT_SECRET is overridden — value redacted\n");
+			banner.append("OAuth2 token    : curl -u atm-ops:$ATM_OPS_CLIENT_SECRET -d 'grant_type=client_credentials&scope=atm.read atm.write' %s\n"
+					.formatted(tokenUrl));
+		}
+	}
+
+	/**
+	 * The Swagger "Authorize" dialog drives the OTHER registered client — the public
+	 * {@code swagger-ui} authorization-code+PKCE client — so its credentials are the
+	 * operator's form login, not the atm-ops secret. Documented here because that mixup
+	 * happened in practice. The operator password follows the same redaction guard as
+	 * the ops secret (dev logs flow to the OTLP collector → Loki).
+	 */
+	private void appendSwaggerLogin(final StringBuilder banner) {
+		final String operatorPassword = DEMO_OPERATOR_PASSWORD.equals(security.operatorPassword())
+				? DEMO_OPERATOR_PASSWORD
+				: "$ATM_OPERATOR_PASSWORD  (ATM_OPERATOR_PASSWORD is overridden — value redacted)";
+		banner.append("Swagger login   : Authorize (client swagger-ui, PKCE public — leave client_secret EMPTY) -> form login %s / %s\n"
+				.formatted(security.operatorUsername(), operatorPassword));
 	}
 
 	/**
