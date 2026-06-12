@@ -164,6 +164,8 @@ class DevTestDataLoggerTest {
 				.doesNotContain("real-secret-from-env");
 	}
 
+	// Drift in either direction fails SAFE: a changed yml default breaks this test; a changed
+	// constant makes the banner redact (never leak). application-dev.yml carries no secret defaults.
 	@Test
 	void demoSecretConstantMatchesTheCommittedYmlDefault() throws IOException {
 		final String yml = Files.readString(Path.of("src/main/resources/application.yml"));

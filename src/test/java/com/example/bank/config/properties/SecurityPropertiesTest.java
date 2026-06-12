@@ -15,6 +15,8 @@ class SecurityPropertiesTest {
 		assertThat(properties.toString())
 				.contains("operator")
 				.doesNotContain("real-password")
-				.doesNotContain("real-client-secret");
+				.doesNotContain("real-client-secret")
+				.contains("operatorPassword=****")
+				.contains("opsClientSecret=****");
 	}
 }
